@@ -94,17 +94,17 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-sm bg-white/95 border border-white/80 rounded-3xl shadow-2xl p-5 text-slate-800 overflow-hidden text-center backdrop-blur-2xl">
+      <div className="relative w-full max-w-sm bg-[#FAF8F5]/98 border border-[#E8E0D1] rounded-3xl shadow-2xl p-5 text-slate-800 overflow-hidden text-center backdrop-blur-2xl">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-3.5 right-3.5 p-2 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-100 transition-colors z-10"
+          className="absolute top-3.5 right-3.5 p-2 text-slate-400 hover:text-slate-700 rounded-full hover:bg-[#E8E0D1]/50 transition-colors z-10"
         >
           <X className="w-5 h-5" />
         </button>
 
         <div className="flex items-center justify-center gap-2 mb-2">
-          <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 shadow-inner">
+          <div className="p-2 bg-[#EEF4FD] text-[#185ADB] rounded-xl border border-[#185ADB]/20 shadow-inner">
             <Camera className="w-5 h-5" />
           </div>
           <h3 className="text-base font-bold text-slate-900">
@@ -119,12 +119,12 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         </p>
 
         {/* Video stream container */}
-        <div className="relative w-full aspect-square bg-slate-900 rounded-2xl overflow-hidden border border-slate-200 flex items-center justify-center shadow-inner">
+        <div className="relative w-full aspect-square bg-slate-900 rounded-2xl overflow-hidden border border-[#E8E0D1] flex items-center justify-center shadow-inner">
           <div id={scannerContainerId} className="w-full h-full" />
           
           {!isScanning && !error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-2 bg-slate-900">
-              <RefreshCw className="w-6 h-6 animate-spin text-indigo-400" />
+              <RefreshCw className="w-6 h-6 animate-spin text-[#185ADB]" />
               <span className="text-xs">{lang === 'hi' ? 'Camera shuru ho raha hai...' : 'Starting camera...'}</span>
             </div>
           )}
@@ -140,7 +140,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         <div className="mt-4">
           <button
             onClick={onClose}
-            className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-colors shadow-2xs"
+            className="w-full py-2 bg-[#F5F1E8] hover:bg-[#E8E0D1] text-slate-700 text-xs font-semibold rounded-xl border border-[#E8E0D1] transition-colors shadow-2xs"
           >
             Close
           </button>

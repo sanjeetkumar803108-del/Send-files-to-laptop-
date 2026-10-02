@@ -91,16 +91,12 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
   const peer = peers[0];
 
   return (
-    <div className="w-full bg-white/75 backdrop-blur-2xl border border-white/80 rounded-2xl p-4 sm:p-5 shadow-[0_10px_35px_rgba(0,0,0,0.04)]">
+    <div className="w-full bg-[#FAF8F5]/90 backdrop-blur-2xl border border-[#E8E0D1] rounded-2xl p-4 sm:p-5 shadow-[0_10px_35px_rgba(24,90,219,0.03)]">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-center">
         {/* My Device */}
-        <div className="flex items-center justify-between p-3 sm:p-3.5 bg-slate-50/80 border border-slate-200/80 rounded-xl shadow-xs gap-2">
+        <div className="flex items-center justify-between p-3 sm:p-3.5 bg-white/80 border border-[#E8E0D1] rounded-xl shadow-xs gap-2">
           <div className="flex items-center gap-2.5 min-w-0 flex-1 truncate">
-            <div className={`p-2 sm:p-2.5 rounded-xl border shrink-0 ${
-              myDeviceType === 'mobile'
-                ? 'bg-purple-50 text-purple-600 border-purple-200/80'
-                : 'bg-indigo-50 text-indigo-600 border-indigo-200/80'
-            }`}>
+            <div className="p-2 sm:p-2.5 rounded-xl border shrink-0 bg-[#EEF4FD] text-[#185ADB] border-[#D8E5FB]">
               {myDeviceType === 'mobile' ? <Smartphone className="w-5 h-5" /> : <Laptop className="w-5 h-5" />}
             </div>
             <div className="min-w-0 flex-1 truncate">
@@ -111,7 +107,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
                 <button
                   onClick={onToggleDeviceType}
                   title="Switch"
-                  className="text-[10px] text-indigo-600 hover:text-indigo-700 font-semibold underline flex items-center gap-0.5"
+                  className="text-[10px] text-[#FF8A3D] hover:text-[#E66F20] font-semibold underline flex items-center gap-0.5"
                 >
                   <ArrowLeftRight className="w-2.5 h-2.5" />
                   Switch
@@ -124,13 +120,13 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
                     type="text"
                     value={tempName}
                     onChange={(e) => setTempName(e.target.value)}
-                    className="bg-white border border-indigo-400 rounded px-2 py-0.5 text-xs text-slate-800 outline-none w-28 shadow-xs"
+                    className="bg-white border border-[#185ADB] rounded px-2 py-0.5 text-xs text-slate-800 outline-none w-28 shadow-xs"
                     autoFocus
                     onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
                   />
                   <button
                     onClick={handleSaveName}
-                    className="p-1 rounded bg-indigo-600 text-white hover:bg-indigo-700"
+                    className="p-1 rounded bg-[#185ADB] text-white hover:bg-[#1246AB]"
                   >
                     <Check className="w-3 h-3" />
                   </button>
@@ -153,7 +149,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
             </div>
           </div>
 
-          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white text-slate-600 border border-slate-200 shadow-2xs shrink-0">
+          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#FAF8F5] text-slate-600 border border-[#E8E0D1] shadow-2xs shrink-0">
             {myDeviceType === 'mobile' ? 'Mobile' : 'Laptop'}
           </span>
         </div>
@@ -161,17 +157,13 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
         {/* Peer Device */}
         <div className={`p-3 sm:p-3.5 rounded-xl border transition-all ${
           hasPeer
-            ? 'bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-200/50 shadow-xs'
-            : 'bg-slate-50/60 border-slate-200/80 border-dashed'
+            ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-200/50 shadow-xs'
+            : 'bg-white/60 border-[#E8E0D1] border-dashed'
         }`}>
           {hasPeer ? (
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0 flex-1 truncate">
-                <div className={`p-2 sm:p-2.5 rounded-xl border shrink-0 ${
-                  peer.deviceType === 'mobile'
-                    ? 'bg-purple-50 text-purple-600 border-purple-200'
-                    : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                }`}>
+                <div className="p-2 sm:p-2.5 rounded-xl border shrink-0 bg-emerald-50 text-emerald-600 border-emerald-200">
                   {peer.deviceType === 'mobile' ? <Smartphone className="w-5 h-5" /> : <Laptop className="w-5 h-5" />}
                 </div>
                 <div className="min-w-0 flex-1 truncate">
@@ -194,8 +186,8 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
             <div className="space-y-3">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-white text-slate-500 border border-slate-200 shadow-xs shrink-0">
-                    <RefreshCw className="w-5 h-5 animate-spin text-indigo-600" />
+                  <div className="p-2 rounded-xl bg-white text-slate-500 border border-[#E8E0D1] shadow-xs shrink-0">
+                    <RefreshCw className="w-5 h-5 animate-spin text-[#185ADB]" />
                   </div>
                   <h4 className="text-xs sm:text-sm font-bold text-slate-700">
                     Waiting...
@@ -206,7 +198,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
                   {myDeviceType === 'mobile' && onOpenScanner && (
                     <button
                       onClick={onOpenScanner}
-                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1 transition-colors shadow-sm"
+                      className="px-2.5 py-1 bg-[#185ADB] hover:bg-[#1246AB] text-white text-xs font-semibold rounded-lg flex items-center gap-1 transition-colors shadow-xs"
                       title="Scan"
                     >
                       <Camera className="w-3 h-3" />
@@ -216,17 +208,17 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
 
                   <button
                     onClick={onOpenQR}
-                    className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1 border border-slate-200 shadow-2xs transition-colors"
+                    className="px-2.5 py-1 bg-white hover:bg-[#F5F1E8] text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1 border border-[#E8E0D1] shadow-2xs transition-colors"
                   >
-                    <QrCode className="w-3 h-3 text-indigo-600" />
+                    <QrCode className="w-3 h-3 text-[#185ADB]" />
                     <span>QR</span>
                   </button>
 
                   <button
                     onClick={() => setShowPinInput(!showPinInput)}
-                    className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1 border border-slate-200 shadow-2xs transition-colors"
+                    className="px-2.5 py-1 bg-white hover:bg-[#F5F1E8] text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1 border border-[#E8E0D1] shadow-2xs transition-colors"
                   >
-                    <KeyRound className="w-3 h-3 text-slate-500" />
+                    <KeyRound className="w-3 h-3 text-[#FF8A3D]" />
                     <span>PIN</span>
                   </button>
                 </div>
@@ -234,7 +226,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
 
               {/* Quick PIN Input Box */}
               {showPinInput && (
-                <div className="pt-2 border-t border-slate-200/80">
+                <div className="pt-2 border-t border-[#E8E0D1]">
                   <form onSubmit={handleJoin} className="flex items-center gap-2">
                     <input
                       type="text"
@@ -246,13 +238,13 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
                       className={`flex-1 bg-white rounded-lg px-3 py-1.5 text-xs text-slate-900 outline-none font-mono tracking-widest text-center border shadow-xs transition-all ${
                         pinError
                           ? 'border-rose-400 ring-1 ring-rose-400/50 bg-rose-50/50 text-rose-800'
-                          : 'border-slate-300 focus:border-indigo-500'
+                          : 'border-[#DFD5C0] focus:border-[#185ADB]'
                       }`}
                     />
                     <button
                       type="submit"
                       disabled={inputPin.length < 6 || isCheckingPin}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors shadow-xs shrink-0"
+                      className="px-3.5 py-1.5 bg-[#FF8A3D] hover:bg-[#E66F20] disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors shadow-xs shrink-0"
                     >
                       {isCheckingPin ? '...' : 'Connect'}
                     </button>

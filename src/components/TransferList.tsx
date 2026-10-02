@@ -36,8 +36,8 @@ export const TransferList: React.FC<TransferListProps> = ({
   onClearTransfers,
 }) => {
   const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith('image/')) return <ImageIcon className="w-5 h-5 text-indigo-600" />;
-    if (mimeType.startsWith('video/')) return <Film className="w-5 h-5 text-cyan-600" />;
+    if (mimeType.startsWith('image/')) return <ImageIcon className="w-5 h-5 text-[#185ADB]" />;
+    if (mimeType.startsWith('video/')) return <Film className="w-5 h-5 text-[#FF8A3D]" />;
     if (mimeType.startsWith('audio/')) return <Music className="w-5 h-5 text-emerald-600" />;
     if (mimeType.includes('zip') || mimeType.includes('tar') || mimeType.includes('compressed')) {
       return <Archive className="w-5 h-5 text-amber-600" />;
@@ -49,14 +49,14 @@ export const TransferList: React.FC<TransferListProps> = ({
   const completedTransfers = transfers.filter((t) => t.status === 'completed' || t.status === 'cancelled' || t.status === 'error');
 
   return (
-    <div className="w-full bg-white/75 backdrop-blur-2xl border border-white/80 rounded-2xl p-4 sm:p-5 shadow-[0_10px_35px_rgba(0,0,0,0.04)] space-y-4">
+    <div className="w-full bg-[#FAF8F5]/90 backdrop-blur-2xl border border-[#E8E0D1] rounded-2xl p-4 sm:p-5 shadow-[0_10px_35px_rgba(24,90,219,0.03)] space-y-4">
       {/* Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#E8E0D1]">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-bold text-slate-900 tracking-tight">
             Transfers
           </h3>
-          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-white text-slate-700 border border-[#E8E0D1]">
             {transfers.length}
           </span>
         </div>
@@ -68,7 +68,7 @@ export const TransferList: React.FC<TransferListProps> = ({
               type="checkbox"
               checked={autoDownload}
               onChange={(e) => onToggleAutoDownload(e.target.checked)}
-              className="w-4 h-4 rounded bg-white border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              className="w-4 h-4 rounded bg-white border-[#DFD5C0] text-[#185ADB] focus:ring-[#185ADB]"
             />
             <span className="font-semibold">Auto</span>
           </label>
@@ -96,11 +96,11 @@ export const TransferList: React.FC<TransferListProps> = ({
           {activeTransfers.map((item) => (
             <div
               key={item.fileId}
-              className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-200/80 shadow-xs space-y-2"
+              className="p-3 rounded-xl bg-[#EEF4FD]/80 border border-[#D8E5FB] shadow-xs space-y-2"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0 flex-1 truncate">
-                  <div className="p-2 rounded-lg bg-white border border-slate-200 shrink-0 shadow-2xs">
+                  <div className="p-2 rounded-lg bg-white border border-[#D8E5FB] shrink-0 shadow-2xs">
                     {getFileIcon(item.type)}
                   </div>
                   <div className="min-w-0 flex-1 truncate">
@@ -110,7 +110,7 @@ export const TransferList: React.FC<TransferListProps> = ({
                       </span>
                       <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold shrink-0 ${
                         item.direction === 'outgoing'
-                          ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                          ? 'bg-[#FFF5EE] text-[#FF8A3D] border border-[#FFE6D5]'
                           : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                       }`}>
                         {item.direction === 'outgoing' ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownLeft className="w-2.5 h-2.5" />}
@@ -120,7 +120,7 @@ export const TransferList: React.FC<TransferListProps> = ({
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mt-0.5">
                       <span>{formatBytes(item.transferredBytes)} / {formatBytes(item.size)}</span>
                       <span>•</span>
-                      <span className="font-mono text-emerald-600 font-semibold flex items-center gap-0.5">
+                      <span className="font-mono text-[#FF8A3D] font-semibold flex items-center gap-0.5">
                         <Zap className="w-2.5 h-2.5" />
                         {formatSpeed(item.speedBytesPerSec)}
                       </span>
@@ -131,7 +131,7 @@ export const TransferList: React.FC<TransferListProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs font-mono font-bold text-indigo-600">
+                  <span className="text-xs font-mono font-bold text-[#185ADB]">
                     {item.progressPercent}%
                   </span>
                   <button
@@ -144,10 +144,10 @@ export const TransferList: React.FC<TransferListProps> = ({
                 </div>
               </div>
 
-              {/* Progress Bar */}
+              {/* Progress Bar - Cobalt Blue to Tangerine Gradient */}
               <div className="w-full h-1.5 rounded-full bg-slate-200/80 overflow-hidden relative">
                 <div
-                  className="h-full bg-gradient-to-r from-indigo-500 via-cyan-500 to-emerald-500 rounded-full transition-all duration-150 ease-out"
+                  className="h-full bg-gradient-to-r from-[#185ADB] via-[#8B5CF6] to-[#FF8A3D] rounded-full transition-all duration-150 ease-out"
                   style={{ width: `${item.progressPercent}%` }}
                 />
               </div>
@@ -158,10 +158,10 @@ export const TransferList: React.FC<TransferListProps> = ({
           {completedTransfers.map((item) => (
             <div
               key={item.fileId}
-              className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-slate-100/60 transition-colors flex items-center justify-between gap-3 text-xs"
+              className="p-2.5 rounded-xl bg-white border border-[#E8E0D1] hover:bg-[#FAF8F5] transition-colors flex items-center justify-between gap-3 text-xs"
             >
               <div className="flex items-center gap-2.5 min-w-0 flex-1 truncate">
-                <div className="p-1.5 rounded-lg bg-white border border-slate-200 shrink-0 shadow-2xs">
+                <div className="p-1.5 rounded-lg bg-[#FAF8F5] border border-[#E8E0D1] shrink-0 shadow-2xs">
                   {getFileIcon(item.type)}
                 </div>
                 <div className="min-w-0 flex-1 truncate">
@@ -175,7 +175,7 @@ export const TransferList: React.FC<TransferListProps> = ({
                         Complete
                       </span>
                     ) : item.status === 'cancelled' ? (
-                      <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                      <span className="text-[10px] text-slate-500 bg-[#F5F1E8] px-1.5 py-0.5 rounded border border-[#E8E0D1]">
                         Cancelled
                       </span>
                     ) : (
@@ -198,7 +198,7 @@ export const TransferList: React.FC<TransferListProps> = ({
                   <>
                     <button
                       onClick={() => onPreviewFile(item)}
-                      className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-white rounded-lg transition-colors border border-slate-200 shadow-2xs"
+                      className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-[#FAF8F5] rounded-lg transition-colors border border-[#E8E0D1] shadow-2xs"
                       title="Preview"
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -206,7 +206,7 @@ export const TransferList: React.FC<TransferListProps> = ({
                     <a
                       href={item.downloadUrl}
                       download={item.name}
-                      className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg flex items-center gap-1 font-semibold transition-colors shadow-2xs"
+                      className="px-2.5 py-1 bg-[#185ADB] hover:bg-[#1246AB] text-white rounded-lg flex items-center gap-1 font-semibold transition-colors shadow-2xs shadow-[#185ADB]/20"
                       title="Save"
                     >
                       <Download className="w-3.5 h-3.5" />

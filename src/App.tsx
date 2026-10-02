@@ -305,12 +305,12 @@ export default function App() {
   const currentOrigin = getPublicAppUrl();
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-50/90 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white relative">
-      {/* Ambient Glassmorphic Mesh Glows - fully isolated inside an overflow-hidden wrapper */}
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#F5F1E8] text-slate-900 flex flex-col font-sans selection:bg-[#185ADB] selection:text-white relative">
+      {/* Ambient Glassmorphic Mesh Glows - Mixing Cobalt Blue (#185ADB) and Tangerine (#FF8A3D) over Cream Linen (#F5F1E8) */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-br from-indigo-200/40 via-purple-200/30 to-pink-200/20 blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-tl from-cyan-200/40 via-sky-200/30 to-emerald-200/20 blur-[120px]" />
-        <div className="absolute top-[35%] right-[10%] w-[35vw] h-[35vw] rounded-full bg-gradient-to-tr from-violet-200/20 to-blue-200/20 blur-[100px]" />
+        <div className="absolute top-[-10%] left-[-10%] w-[55vw] h-[55vw] rounded-full bg-gradient-to-br from-[#185ADB]/20 via-[#185ADB]/10 to-transparent blur-[130px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[55vw] h-[55vw] rounded-full bg-gradient-to-tl from-[#FF8A3D]/25 via-[#FF8A3D]/10 to-transparent blur-[130px]" />
+        <div className="absolute top-[35%] right-[10%] w-[40vw] h-[40vw] rounded-full bg-gradient-to-tr from-[#185ADB]/15 to-[#FF8A3D]/15 blur-[110px]" />
       </div>
 
       {/* Toast Notification */}
@@ -318,17 +318,17 @@ export default function App() {
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200 max-w-[92vw]">
           <div className={`px-4 py-2.5 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-semibold backdrop-blur-xl ${
             toastMessage.type === 'success'
-              ? 'bg-white/95 text-emerald-700 border-emerald-300 shadow-emerald-500/10'
+              ? 'bg-[#FAF8F5]/95 text-emerald-800 border-emerald-300 shadow-emerald-500/10'
               : toastMessage.type === 'error'
-              ? 'bg-white/95 text-rose-700 border-rose-300 shadow-rose-500/15 ring-1 ring-rose-200'
-              : 'bg-white/95 text-indigo-700 border-indigo-200/80 shadow-indigo-500/10'
+              ? 'bg-[#FAF8F5]/95 text-rose-700 border-rose-300 shadow-rose-500/15 ring-1 ring-rose-200'
+              : 'bg-[#FAF8F5]/95 text-[#185ADB] border-[#D8E5FB] shadow-[#185ADB]/10'
           }`}>
             {toastMessage.type === 'success' ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
             ) : toastMessage.type === 'error' ? (
               <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-indigo-500 shrink-0" />
+              <AlertCircle className="w-4 h-4 text-[#185ADB] shrink-0" />
             )}
             <span className="truncate max-w-[260px] xs:max-w-xs sm:max-w-md">{toastMessage.text}</span>
           </div>
@@ -353,11 +353,11 @@ export default function App() {
           <LaptopPairingHero roomId={roomId} lang={lang} />
         )}
 
-        {/* Laptop Web Link - 3 words title, zero banner clutter */}
+        {/* Laptop Web Link - Cream Linen card with Cobalt button */}
         {!isPeerConnected && deviceType === 'mobile' && (
-          <div className="w-full bg-white/75 backdrop-blur-2xl border border-white/80 rounded-2xl p-3 sm:p-3.5 shadow-[0_10px_35px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row items-center justify-between gap-2.5">
+          <div className="w-full bg-[#FAF8F5]/90 backdrop-blur-2xl border border-[#E8E0D1] rounded-2xl p-3 sm:p-3.5 shadow-[0_10px_35px_rgba(24,90,219,0.03)] flex flex-col sm:flex-row items-center justify-between gap-2.5">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 shrink-0">
+              <div className="p-2 rounded-xl bg-[#EEF4FD] text-[#185ADB] border border-[#D8E5FB] shrink-0">
                 <Laptop className="w-4 h-4" />
               </div>
               <span className="text-xs sm:text-sm font-bold text-slate-800">
@@ -366,12 +366,12 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs text-slate-700 truncate max-w-[170px] xs:max-w-[220px] sm:max-w-xs">
+              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-white border border-[#E8E0D1] font-mono text-xs text-slate-700 truncate max-w-[170px] xs:max-w-[220px] sm:max-w-xs">
                 <span className="truncate">{currentOrigin}</span>
               </div>
               <button
                 onClick={copyAppUrl}
-                className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-2xs shrink-0 transition-colors"
+                className="px-3.5 py-1.5 bg-[#185ADB] hover:bg-[#1246AB] text-white text-xs font-semibold rounded-xl shadow-xs shrink-0 transition-colors"
               >
                 {copiedAppUrl ? 'Copied' : 'Copy'}
               </button>

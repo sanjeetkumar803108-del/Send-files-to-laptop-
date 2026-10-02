@@ -105,14 +105,14 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
             handleFilesChosen(e.dataTransfer.files);
           }
         }}
-        className={`relative w-full rounded-2xl border-2 border-dashed p-6 text-center transition-all backdrop-blur-2xl shadow-[0_10px_35px_rgba(0,0,0,0.03)] ${
+        className={`relative w-full rounded-2xl border-2 border-dashed p-6 text-center transition-all backdrop-blur-2xl shadow-[0_10px_35px_rgba(24,90,219,0.03)] ${
           isDragging
-            ? 'border-indigo-500 bg-indigo-50/70 scale-[1.01]'
-            : 'border-slate-300/90 hover:border-indigo-400 bg-white/70 hover:bg-white/90'
+            ? 'border-[#185ADB] bg-[#EEF4FD]/80 scale-[1.01]'
+            : 'border-[#DFD5C0] hover:border-[#185ADB] bg-[#FAF8F5]/85 hover:bg-white/95'
         }`}
       >
         <div className="max-w-md mx-auto flex flex-col items-center justify-center">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center mb-2.5 shadow-inner">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#EEF4FD] to-[#FFF5EE] text-[#185ADB] border border-[#D8E5FB] flex items-center justify-center mb-2.5 shadow-inner">
             <UploadCloud className="w-6 h-6" />
           </div>
 
@@ -120,38 +120,41 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
             Drop Files
           </h3>
 
-          {/* Action Buttons - 1 word each */}
+          {/* Action Buttons - Distinct Cobalt, Tangerine, Linen Mix */}
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            {/* Cobalt Blue Button */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-xs transition-all hover:scale-105 active:scale-95"
+              className="px-4 py-2 bg-[#185ADB] hover:bg-[#1246AB] text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-md shadow-[#185ADB]/20 transition-all hover:scale-105 active:scale-95"
             >
               <FileText className="w-3.5 h-3.5" />
               <span>Files</span>
             </button>
 
+            {/* Tangerine Button */}
             <button
               onClick={() => folderInputRef.current?.click()}
-              className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-2xs flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95"
+              className="px-4 py-2 bg-[#FF8A3D] hover:bg-[#E66F20] text-white text-xs font-semibold rounded-xl shadow-md shadow-[#FF8A3D]/20 flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95"
             >
-              <FolderUp className="w-3.5 h-3.5 text-cyan-600" />
+              <FolderUp className="w-3.5 h-3.5" />
               <span>Folder</span>
             </button>
 
+            {/* Cream Linen Button with Cobalt Accent */}
             <button
               onClick={() => cameraInputRef.current?.click()}
-              className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-2xs flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 sm:hidden"
+              className="px-3.5 py-2 bg-white hover:bg-[#F5F1E8] text-[#185ADB] text-xs font-semibold rounded-xl border border-[#DFD5C0] shadow-2xs flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 sm:hidden"
             >
-              <Camera className="w-3.5 h-3.5 text-emerald-600" />
+              <Camera className="w-3.5 h-3.5 text-[#FF8A3D]" />
               <span>Camera</span>
             </button>
           </div>
 
           {!isPeerConnected && (
-            <div className="mt-3 pt-2.5 border-t border-slate-200/80 w-full flex items-center justify-center gap-1 text-xs">
+            <div className="mt-3 pt-2.5 border-t border-[#E8E0D1] w-full flex items-center justify-center gap-1 text-xs">
               <button
                 onClick={onOpenQR}
-                className="font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-0.5"
+                className="font-semibold text-[#FF8A3D] hover:text-[#E66F20] flex items-center gap-0.5"
               >
                 <span>Pair</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
@@ -163,13 +166,13 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
 
       {/* Staged Files Preview */}
       {stagedFiles.length > 0 && (
-        <div className="p-3.5 bg-white/85 backdrop-blur-2xl border border-white/80 rounded-2xl shadow-md space-y-2.5">
+        <div className="p-3.5 bg-[#FAF8F5]/90 backdrop-blur-2xl border border-[#E8E0D1] rounded-2xl shadow-md space-y-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-800">
                 Selected
               </span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-[#EEF4FD] text-[#185ADB] border border-[#D8E5FB] font-semibold">
                 {stagedFiles.length} ({formatBytes(totalStagedSize)})
               </span>
             </div>
@@ -186,10 +189,10 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
             {stagedFiles.map((file, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200/80 text-xs text-slate-700"
+                className="flex items-center justify-between p-2 rounded-lg bg-white border border-[#E8E0D1] text-xs text-slate-700"
               >
                 <div className="flex items-center gap-2 truncate pr-2">
-                  <FileText className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <FileText className="w-3.5 h-3.5 text-[#185ADB] shrink-0" />
                   <span className="truncate font-medium">{file.name}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -209,7 +212,7 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
             <button
               onClick={handleSendStaged}
               disabled={!isPeerConnected}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
+              className="px-5 py-2 bg-gradient-to-r from-[#185ADB] to-[#FF8A3D] hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-[#185ADB]/20 active:scale-95"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{isPeerConnected ? 'Send' : 'Connect'}</span>

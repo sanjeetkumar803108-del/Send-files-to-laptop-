@@ -46,13 +46,13 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-white/95 border border-white/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] backdrop-blur-2xl">
+      <div className="relative w-full max-w-2xl bg-[#FAF8F5]/98 border border-[#E8E0D1] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] backdrop-blur-2xl">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200/80 flex items-center justify-between bg-slate-50/80">
+        <div className="px-5 py-4 border-b border-[#E8E0D1] flex items-center justify-between bg-[#F5F1E8]/80">
           <div className="flex items-center gap-2.5 truncate pr-3">
-            {isImage && <ImageIcon className="w-5 h-5 text-indigo-600 shrink-0" />}
-            {isVideo && <Film className="w-5 h-5 text-cyan-600 shrink-0" />}
-            {isAudio && <Music className="w-5 h-5 text-emerald-600 shrink-0" />}
+            {isImage && <ImageIcon className="w-5 h-5 text-[#185ADB] shrink-0" />}
+            {isVideo && <Film className="w-5 h-5 text-[#FF8A3D] shrink-0" />}
+            {isAudio && <Music className="w-5 h-5 text-[#FF8A3D] shrink-0" />}
             {!isImage && !isVideo && !isAudio && <FileText className="w-5 h-5 text-slate-500 shrink-0" />}
             <div className="truncate">
               <h3 className="text-sm font-bold text-slate-900 truncate">{name}</h3>
@@ -65,7 +65,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               <a
                 href={downloadUrl}
                 download={name}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
+                className="px-3 py-1.5 bg-[#185ADB] hover:bg-[#1349b0] text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>{lang === 'hi' ? 'Download' : 'Download'}</span>
@@ -73,7 +73,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             )}
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-200/60 transition-colors"
+              className="p-1.5 text-slate-400 hover:text-slate-700 rounded-full hover:bg-[#E8E0D1]/50 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -81,7 +81,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         </div>
 
         {/* Content Viewer */}
-        <div className="p-4 flex-1 overflow-auto flex items-center justify-center bg-slate-50/40 min-h-[300px]">
+        <div className="p-4 flex-1 overflow-auto flex items-center justify-center bg-[#F5F1E8]/40 min-h-[300px]">
           {isImage && downloadUrl && (
             <img
               src={downloadUrl}
@@ -100,15 +100,15 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           )}
 
           {isAudio && downloadUrl && (
-            <div className="w-full max-w-md p-6 bg-white border border-slate-200 rounded-2xl text-center space-y-4 shadow-sm">
-              <Music className="w-12 h-12 text-emerald-600 mx-auto animate-pulse" />
+            <div className="w-full max-w-md p-6 bg-[#FAF8F5] border border-[#E8E0D1] rounded-2xl text-center space-y-4 shadow-sm">
+              <Music className="w-12 h-12 text-[#FF8A3D] mx-auto animate-pulse" />
               <p className="text-sm font-bold text-slate-800">{name}</p>
               <audio src={downloadUrl} controls className="w-full" autoPlay />
             </div>
           )}
 
           {isText && (
-            <pre className="w-full h-full max-h-[55vh] p-4 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 overflow-auto whitespace-pre-wrap shadow-inner">
+            <pre className="w-full h-full max-h-[55vh] p-4 bg-[#FAF8F5] border border-[#E8E0D1] rounded-xl text-xs font-mono text-slate-800 overflow-auto whitespace-pre-wrap shadow-inner">
               {textContent}
             </pre>
           )}
@@ -125,7 +125,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 <a
                   href={downloadUrl}
                   download={name}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#185ADB] hover:bg-[#1349b0] text-white text-xs font-semibold rounded-xl shadow-md shadow-[#185ADB]/20"
                 >
                   <Download className="w-4 h-4" />
                   <span>Download</span>
