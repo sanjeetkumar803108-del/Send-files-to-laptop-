@@ -80,3 +80,61 @@
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: #185ADB;
 }
+
+/* Continuous Connected Device Beam & Pulse Animations */
+@keyframes flowBeam {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes pulseTravelRight {
+  0% {
+    left: 0%;
+    opacity: 0.2;
+    transform: translateY(-50%) scale(0.7);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.2);
+  }
+  100% {
+    left: 100%;
+    opacity: 0.2;
+    transform: translateY(-50%) scale(0.7);
+  }
+}
+
+@keyframes pulseTravelLeft {
+  0% {
+    right: 0%;
+    opacity: 0.2;
+    transform: translateY(-50%) scale(0.7);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.2);
+  }
+  100% {
+    right: 100%;
+    opacity: 0.2;
+    transform: translateY(-50%) scale(0.7);
+  }
+}
+
+.animate-flow-beam {
+  background: linear-gradient(90deg, #185ADB, #10B981, #FF8A3D, #185ADB);
+  background-size: 300% 100%;
+  animation: flowBeam 2.5s linear infinite;
+}
+
+.travel-pulse-right {
+  animation: pulseTravelRight 1.8s ease-in-out infinite;
+}
+
+.travel-pulse-left {
+  animation: pulseTravelLeft 1.8s ease-in-out infinite 0.9s;
+}
