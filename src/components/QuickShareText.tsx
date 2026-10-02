@@ -13,6 +13,7 @@ export const QuickShareText: React.FC<QuickShareTextProps> = ({
   snippets,
   onSendText,
   isPeerConnected,
+  lang,
 }) => {
   const [inputText, setInputText] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -39,17 +40,27 @@ export const QuickShareText: React.FC<QuickShareTextProps> = ({
       <div className="flex items-center justify-between">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2.5 text-left w-full group"
+          className="flex items-center gap-3 text-left w-full group"
         >
-          <div className="p-1.5 rounded-lg bg-[#EEF4FD] text-[#185ADB] border border-[#D8E5FB]">
-            <MessageSquare className="w-4 h-4" />
+          <div className="p-2 rounded-xl bg-gradient-to-tr from-[#EEF4FD] to-[#FFF5EE] text-[#185ADB] border border-[#D8E5FB] shrink-0 shadow-2xs">
+            <MessageSquare className="w-4 h-4 text-[#185ADB]" />
           </div>
-          <div className="flex-1">
-            <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-[#185ADB] transition-colors">
-              Text
-            </h4>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-[#185ADB] transition-colors">
+                Quick Text & Link Share
+              </h4>
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-[#FFF5EE] text-[#FF8A3D] border border-[#FFE6D5]">
+                Clipboard
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+              {lang === 'hi'
+                ? 'Mobile aur Laptop ke beech links, notes, text ya messages turant share karein'
+                : 'Instantly share text, website links, notes or clipboard between mobile & laptop'}
+            </p>
           </div>
-          <div className="p-1 text-slate-400 group-hover:text-slate-600">
+          <div className="p-1.5 rounded-lg bg-white border border-[#E8E0D1] text-slate-400 group-hover:text-slate-700 transition-colors shrink-0 shadow-2xs">
             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
         </button>
@@ -61,7 +72,7 @@ export const QuickShareText: React.FC<QuickShareTextProps> = ({
           <form onSubmit={handleSubmit} className="flex gap-2">
             <input
               type="text"
-              placeholder="Type message or link..."
+              placeholder={lang === 'hi' ? 'Koi bhi link, note ya message type karein...' : 'Type message, link, or note...'}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               disabled={!isPeerConnected}
