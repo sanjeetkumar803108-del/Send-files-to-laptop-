@@ -63,12 +63,14 @@ export default function App() {
   const [copiedAppUrl, setCopiedAppUrl] = useState(false);
 
   const engineRef = useRef<TransferEngine | null>(null);
+  const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const showToast = useCallback((text: string, type: 'success' | 'error' | 'info' = 'info') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToastMessage({ text, type });
-    setTimeout(() => {
+    toastTimerRef.current = setTimeout(() => {
       setToastMessage(null);
-    }, 3500);
+    }, type === 'error' ? 4500 : 3200);
   }, []);
 
   // Initialize and synchronize TransferEngine
@@ -109,6 +111,9 @@ export default function App() {
           lang === 'hi' ? 'Naya Text Message Receive Hua!' : 'New Snippet Received!',
           'info'
         );
+      },
+      (fileName, reason) => {
+        showToast(`❌ ${fileName}: ${reason}`, 'error');
       }
     );
 
@@ -234,13 +239,11 @@ export default function App() {
     try {
       engineRef.current.queueFiles(files);
       showToast(
-        lang === 'hi'
-          ? `${files.length} file(s) transfer shuru ho gayi!`
-          : `Sending ${files.length} file(s)...`,
+        `Sending ${files.length} file(s)...`,
         'info'
       );
     } catch (err: any) {
-      showToast(err.message || 'Error queueing files', 'error');
+      showToast(`❌ ${err.message || 'Cannot send files'}`, 'error');
     }
   };
 
@@ -258,7 +261,7 @@ export default function App() {
         },
         ...prev,
       ]);
-      showToast(lang === 'hi' ? 'Text bheja gaya' : 'Text sent', 'success');
+      showToast('Text sent', 'success');
     } catch (err: any) {
       showToast(err.message || 'Error sending text', 'error');
     }
@@ -266,8 +269,10 @@ export default function App() {
 
   const handleCancelTransfer = (fileId: string) => {
     if (engineRef.current) {
+      const t = engineRef.current.transfers.get(fileId);
+      const name = t?.name || 'File';
       engineRef.current.cancelTransfer(fileId);
-      showToast(lang === 'hi' ? 'Transfer cancel kiya gaya' : 'Transfer cancelled', 'info');
+      showToast(`❌ Transfer cancelled: ${name}`, 'error');
     }
   };
 
@@ -310,20 +315,22 @@ export default function App() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200 max-w-[90vw]">
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200 max-w-[92vw]">
           <div className={`px-4 py-2.5 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-semibold backdrop-blur-xl ${
             toastMessage.type === 'success'
-              ? 'bg-white/90 text-emerald-700 border-emerald-200/80 shadow-emerald-500/10'
+              ? 'bg-white/95 text-emerald-700 border-emerald-300 shadow-emerald-500/10'
               : toastMessage.type === 'error'
-              ? 'bg-white/90 text-rose-700 border-rose-200/80 shadow-rose-500/10'
-              : 'bg-white/90 text-indigo-700 border-indigo-200/80 shadow-indigo-500/10'
+              ? 'bg-white/95 text-rose-700 border-rose-300 shadow-rose-500/15 ring-1 ring-rose-200'
+              : 'bg-white/95 text-indigo-700 border-indigo-200/80 shadow-indigo-500/10'
           }`}>
             {toastMessage.type === 'success' ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+            ) : toastMessage.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+              <AlertCircle className="w-4 h-4 text-indigo-500 shrink-0" />
             )}
-            <span className="truncate">{toastMessage.text}</span>
+            <span className="truncate max-w-[260px] xs:max-w-xs sm:max-w-md">{toastMessage.text}</span>
           </div>
         </div>
       )}

@@ -10,6 +10,7 @@ export type ConnectionCallback = (mode: ConnectionMode) => void;
 export type PeersCallback = (peers: PeerDevice[]) => void;
 export type ProgressCallback = (items: TransferProgress[]) => void;
 export type SnippetCallback = (snippet: SharedSnippet) => void;
+export type TransferErrorCallback = (fileName: string, reason: string) => void;
 
 interface ActiveReceivingFile {
   fileId: string;
@@ -56,6 +57,7 @@ export class TransferEngine {
   private onPeersChange?: PeersCallback;
   private onProgressChange?: ProgressCallback;
   private onSnippetReceived?: SnippetCallback;
+  private onTransferError?: TransferErrorCallback;
 
   // WebRTC negotiation state
   private isInitiator = false;
@@ -100,12 +102,14 @@ export class TransferEngine {
     onConnectionChange: ConnectionCallback,
     onPeersChange: PeersCallback,
     onProgressChange: ProgressCallback,
-    onSnippetReceived: SnippetCallback
+    onSnippetReceived: SnippetCallback,
+    onTransferError?: TransferErrorCallback
   ) {
     this.onConnectionChange = onConnectionChange;
     this.onPeersChange = onPeersChange;
     this.onProgressChange = onProgressChange;
     this.onSnippetReceived = onSnippetReceived;
+    this.onTransferError = onTransferError;
   }
 
   public setAutoDownload(enabled: boolean) {
@@ -330,6 +334,14 @@ export class TransferEngine {
           this.connectedPeers = [];
           this.onPeersChange?.([]);
           this.setMode('disconnected');
+          this.transfers.forEach((progress) => {
+            if (progress.status === 'transferring' || progress.status === 'queued') {
+              progress.status = 'error';
+              progress.speedBytesPerSec = 0;
+              this.onTransferError?.(progress.name, 'Connection lost');
+            }
+          });
+          this.notifyProgress();
         }
         // Attempt fast reconnection
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
@@ -384,6 +396,14 @@ export class TransferEngine {
 
       case 'peer-left': {
         console.log('Peer left event received for:', msg.peerId);
+        this.transfers.forEach((progress) => {
+          if (progress.status === 'transferring' || progress.status === 'queued') {
+            progress.status = 'error';
+            progress.speedBytesPerSec = 0;
+            this.onTransferError?.(progress.name, 'Device disconnected');
+          }
+        });
+        this.notifyProgress();
         this.connectedPeers = this.connectedPeers.filter((p) => p.id !== msg.peerId);
         this.onPeersChange?.(this.connectedPeers);
         if (this.connectedPeers.length === 0) {
@@ -925,10 +945,11 @@ export class TransferEngine {
   public cancelTransfer(fileId: string) {
     this.cancelledTransfers.add(fileId);
     const progress = this.transfers.get(fileId);
-    if (progress && progress.status === 'transferring') {
+    if (progress && (progress.status === 'transferring' || progress.status === 'queued')) {
       progress.status = 'cancelled';
       progress.speedBytesPerSec = 0;
       this.notifyProgress();
+      this.onTransferError?.(progress.name, 'Transfer cancelled');
 
       // Notify peer
       if (this.dataChannel && this.dataChannel.readyState === 'open') {
@@ -959,6 +980,7 @@ export class TransferEngine {
       progress.status = 'cancelled';
       progress.speedBytesPerSec = 0;
       this.notifyProgress();
+      this.onTransferError?.(progress.name, 'Cancelled by sender');
     }
   }
 
@@ -1219,6 +1241,7 @@ export class TransferEngine {
       progress.status = 'error';
       progress.speedBytesPerSec = 0;
       this.notifyProgress();
+      this.onTransferError?.(file.name, err.message || 'Transfer failed');
     }
   }
 
