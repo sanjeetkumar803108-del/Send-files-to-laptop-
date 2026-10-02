@@ -21,9 +21,41 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedPin, setCopiedPin] = useState(false);
+  const [networkIps, setNetworkIps] = useState<string[]>([]);
+  const [selectedIp, setSelectedIp] = useState<string>('');
 
-  const baseUrl = getPublicAppUrl();
-  const joinUrl = `${baseUrl}/?room=${roomId}&join=1`;
+  // Fetch local network IPs from server
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch('/api/network-ip')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.ips && Array.isArray(data.ips) && data.ips.length > 0) {
+          setNetworkIps(data.ips);
+          // Prefer hotspot IP (192.168.137.x or 192.168.x.x) if available
+          const hotspotIp = data.ips.find((ip: string) => ip.startsWith('192.168.137.'))
+            || data.ips.find((ip: string) => ip.startsWith('192.168.'))
+            || data.ips[0];
+          setSelectedIp(hotspotIp);
+        }
+      })
+      .catch(() => {});
+  }, [isOpen]);
+
+  const getEffectiveBaseUrl = () => {
+    if (typeof window === 'undefined') return '';
+    const protocol = window.location.protocol;
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    if (isLocal && selectedIp) {
+      const port = window.location.port ? `:${window.location.port}` : '';
+      return `${protocol}//${selectedIp}${port}`;
+    }
+    return getPublicAppUrl();
+  };
+
+  const effectiveBaseUrl = getEffectiveBaseUrl();
+  const joinUrl = `${effectiveBaseUrl}/?room=${roomId}&join=1`;
 
   useEffect(() => {
     if (joinUrl && isOpen) {
@@ -92,18 +124,25 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
         </div>
 
         {/* Step Guide Banner */}
-        <div className="mt-4 p-3 rounded-xl bg-indigo-950/50 border border-indigo-500/30 text-xs text-slate-300 space-y-1.5 text-left">
-          <div className="flex items-center gap-1.5 font-bold text-indigo-300">
-            <Laptop className="w-4 h-4 text-indigo-400" />
-            <span>{lang === 'hi' ? 'Laptop me kaise kholein?' : 'How to open on Laptop?'}</span>
+        <div className="mt-4 p-3 rounded-xl bg-indigo-950/50 border border-indigo-500/30 text-xs text-slate-300 space-y-2 text-left">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 font-bold text-indigo-300">
+              <Laptop className="w-4 h-4 text-indigo-400" />
+              <span>{lang === 'hi' ? 'Mobile me kaise connect karein?' : 'How to connect on Mobile?'}</span>
+            </div>
+            {networkIps.length > 1 && (
+              <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">
+                {networkIps.length} IPs Detected
+              </span>
+            )}
           </div>
           <p className="text-[11px] text-slate-300 leading-relaxed">
             {lang === 'hi'
-              ? '1. Laptop ke Chrome browser me jayein aur yeh website open karein.'
-              : '1. Open Chrome browser on your laptop and visit this web address.'}
+              ? '1. Mobile ke Chrome browser me yeh URL kholein ya neeche diya QR Code scan karein:'
+              : '1. Open this URL in your mobile Chrome browser or scan the QR Code below:'}
           </p>
           <div className="p-2 rounded bg-slate-950/80 border border-slate-800 font-mono text-[11px] text-cyan-300 flex items-center justify-between truncate">
-            <span className="truncate">{baseUrl}</span>
+            <span className="truncate">{effectiveBaseUrl}</span>
             <button
               onClick={copyUrl}
               className="text-xs px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 ml-2"
@@ -111,10 +150,34 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
               {copiedUrl ? 'Copied!' : 'Copy'}
             </button>
           </div>
+
+          {networkIps.length > 1 && (
+            <div className="pt-1">
+              <span className="text-[10px] text-slate-400 block mb-1">
+                {lang === 'hi' ? 'Agar connect na ho, to dusra IP chunein:' : 'Or switch to another IP:'}
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {networkIps.map((ip) => (
+                  <button
+                    key={ip}
+                    onClick={() => setSelectedIp(ip)}
+                    className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                      selectedIp === ip
+                        ? 'bg-indigo-600 border-indigo-400 text-white font-semibold'
+                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    {ip.startsWith('192.168.137.') ? `🔥 Hotspot (${ip})` : ip}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <p className="text-[11px] text-slate-300 leading-relaxed">
             {lang === 'hi'
-              ? '2. Laptop par QR Code dikhega. Mobile se scan karein ya 6-digit PIN dalein.'
-              : '2. Your laptop will show a QR code. Scan it from phone or type the 6-digit PIN.'}
+              ? '2. Mobile me neeche diya gaya 6-Digit PIN enter karein aur Join par click karein.'
+              : '2. Enter the 6-Digit PIN below on your mobile and tap Join.'}
           </p>
         </div>
 

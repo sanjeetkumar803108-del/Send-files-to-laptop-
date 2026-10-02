@@ -50,6 +50,10 @@ export function getDefaultDeviceName(type: 'mobile' | 'laptop'): string {
 
 export function getPublicAppUrl(): string {
   if (typeof window === 'undefined') return '';
+  const customAppUrl = (import.meta.env.VITE_APP_URL as string | undefined)?.trim();
+  if (customAppUrl) {
+    return customAppUrl.replace(/\/$/, '');
+  }
   const protocol = window.location.protocol;
   let host = window.location.host;
   // Convert internal dev URL (ais-dev-) to public shareable URL (ais-pre-)

@@ -152,7 +152,8 @@ export class TransferEngine {
     try {
       const isHttps = window.location.protocol === 'https:';
       const wsProtocol = isHttps ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+      const customWs = (import.meta.env.VITE_SIGNALING_URL as string | undefined)?.trim();
+      const wsUrl = customWs || `${wsProtocol}//${window.location.host}/ws`;
 
       this.ws = new WebSocket(wsUrl);
 

@@ -11,6 +11,7 @@ import { QRCodeModal } from './components/QRCodeModal';
 import { QRScannerModal } from './components/QRScannerModal';
 import { HotspotGuideModal } from './components/HotspotGuideModal';
 import { FilePreviewModal } from './components/FilePreviewModal';
+import { LaptopPairingHero } from './components/LaptopPairingHero';
 import { Wifi, AlertCircle, ShieldCheck, CheckCircle2, Laptop, Copy, Check, Camera } from 'lucide-react';
 
 export default function App() {
@@ -312,48 +313,55 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        {/* Banner: How to open on Laptop */}
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shrink-0">
-              <Laptop className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
-                <span>{lang === 'hi' ? 'Laptop me koi app install nahi karni!' : 'No installation needed on Laptop!'}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
-                  Chrome / Edge Web App
-                </span>
-              </h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                {lang === 'hi'
-                  ? 'Laptop ke Chrome browser me yeh website open karein aur phone se scan karein:'
-                  : 'Open Chrome or Edge on your laptop and visit this web URL:'}
-              </p>
-            </div>
-          </div>
+        {/* On Laptop when waiting to connect: Show Instant QR Code & 6-Digit PIN directly on screen */}
+        {deviceType === 'laptop' && !isPeerConnected && (
+          <LaptopPairingHero roomId={roomId} lang={lang} />
+        )}
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              onClick={copyAppUrl}
-              className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-mono text-cyan-300 flex items-center justify-center gap-1.5 transition-colors"
-              title="Copy URL"
-            >
-              {copiedAppUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span className="truncate max-w-[160px] sm:max-w-[200px]">{currentOrigin}</span>
-            </button>
+        {/* Banner: For Mobile or when connected */}
+        {(deviceType === 'mobile' || isPeerConnected) && (
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shrink-0">
+                <Laptop className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                  <span>{lang === 'hi' ? 'Laptop me koi app install nahi karni!' : 'No installation needed on Laptop!'}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
+                    Chrome / Edge Web App
+                  </span>
+                </h2>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {lang === 'hi'
+                    ? 'Laptop ke Chrome browser me yeh website open karein aur phone se scan karein:'
+                    : 'Open Chrome or Edge on your laptop and visit this web URL:'}
+                </p>
+              </div>
+            </div>
 
-            {deviceType === 'mobile' && (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <button
-                onClick={() => setIsScannerOpen(true)}
-                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-600/20 shrink-0 transition-colors"
+                onClick={copyAppUrl}
+                className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-mono text-cyan-300 flex items-center justify-center gap-1.5 transition-colors"
+                title="Copy URL"
               >
-                <Camera className="w-3.5 h-3.5" />
-                <span>{lang === 'hi' ? 'Scan Karein' : 'Scan Laptop'}</span>
+                {copiedAppUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span className="truncate max-w-[160px] sm:max-w-[200px]">{currentOrigin}</span>
               </button>
-            )}
+
+              {deviceType === 'mobile' && (
+                <button
+                  onClick={() => setIsScannerOpen(true)}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-600/20 shrink-0 transition-colors"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>{lang === 'hi' ? 'Scan Karein' : 'Scan Laptop'}</span>
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Device Status & Pairing Card */}
         <DeviceCard
