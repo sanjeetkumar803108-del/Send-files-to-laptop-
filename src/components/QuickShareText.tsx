@@ -13,7 +13,6 @@ export const QuickShareText: React.FC<QuickShareTextProps> = ({
   snippets,
   onSendText,
   isPeerConnected,
-  lang,
 }) => {
   const [inputText, setInputText] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -47,7 +46,7 @@ export const QuickShareText: React.FC<QuickShareTextProps> = ({
           </div>
           <div className="flex-1">
             <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-              {lang === 'hi' ? 'Quick Text Share' : 'Quick Text Share'}
+              Text Share
             </h4>
           </div>
           <div className="p-1 text-slate-400 group-hover:text-slate-600">
@@ -62,7 +61,7 @@ export const QuickShareText: React.FC<QuickShareTextProps> = ({
           <form onSubmit={handleSubmit} className="flex gap-2">
             <input
               type="text"
-              placeholder={lang === 'hi' ? 'Koi bhi link ya message type karein...' : 'Type or paste link, text, code...'}
+              placeholder="Type message or link..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               disabled={!isPeerConnected}
@@ -74,7 +73,7 @@ export const QuickShareText: React.FC<QuickShareTextProps> = ({
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>{lang === 'hi' ? 'Send' : 'Send'}</span>
+              <span>Send</span>
             </button>
           </form>
 
@@ -95,7 +94,7 @@ export const QuickShareText: React.FC<QuickShareTextProps> = ({
                   <button
                     onClick={() => copyToClipboard(snip.id, snip.text)}
                     className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 rounded-lg flex items-center gap-1 shrink-0 transition-colors border border-slate-200 shadow-2xs"
-                    title="Copy text"
+                    title="Copy"
                   >
                     {copiedId === snip.id ? (
                       <Check className="w-3.5 h-3.5 text-emerald-600" />

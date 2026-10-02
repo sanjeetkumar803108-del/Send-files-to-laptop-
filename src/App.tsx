@@ -346,6 +346,32 @@ export default function App() {
           <LaptopPairingHero roomId={roomId} lang={lang} />
         )}
 
+        {/* Laptop Web Link - 3 words title, zero banner clutter */}
+        {!isPeerConnected && deviceType === 'mobile' && (
+          <div className="w-full bg-white/75 backdrop-blur-2xl border border-white/80 rounded-2xl p-3 sm:p-3.5 shadow-[0_10px_35px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 shrink-0">
+                <Laptop className="w-4 h-4" />
+              </div>
+              <span className="text-xs sm:text-sm font-bold text-slate-800">
+                Laptop Web Link
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs text-slate-700 truncate max-w-xs">
+                <span className="truncate">{currentOrigin}</span>
+              </div>
+              <button
+                onClick={copyAppUrl}
+                className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-2xs shrink-0 transition-colors"
+              >
+                {copiedAppUrl ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Device Status & Pairing Card */}
         <DeviceCard
           myDeviceName={deviceName}

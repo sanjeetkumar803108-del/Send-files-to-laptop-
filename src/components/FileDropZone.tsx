@@ -13,7 +13,6 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
   onSendFiles,
   isPeerConnected,
   onOpenQR,
-  lang,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
@@ -106,57 +105,55 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
             handleFilesChosen(e.dataTransfer.files);
           }
         }}
-        className={`relative w-full rounded-2xl border-2 border-dashed p-6 sm:p-8 text-center transition-all backdrop-blur-2xl shadow-[0_10px_35px_rgba(0,0,0,0.03)] ${
+        className={`relative w-full rounded-2xl border-2 border-dashed p-6 text-center transition-all backdrop-blur-2xl shadow-[0_10px_35px_rgba(0,0,0,0.03)] ${
           isDragging
             ? 'border-indigo-500 bg-indigo-50/70 scale-[1.01]'
             : 'border-slate-300/90 hover:border-indigo-400 bg-white/70 hover:bg-white/90'
-        } ${!isPeerConnected ? 'opacity-95' : ''}`}
+        }`}
       >
         <div className="max-w-md mx-auto flex flex-col items-center justify-center">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center mb-3 shadow-inner group-hover:scale-105 transition-transform">
-            <UploadCloud className="w-8 h-8" />
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center mb-2.5 shadow-inner">
+            <UploadCloud className="w-6 h-6" />
           </div>
 
-          <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-            {lang === 'hi'
-              ? 'Files Drag & Drop karein ya Select karein'
-              : 'Drag & Drop Files Here or Select Below'}
+          <h3 className="text-base font-bold text-slate-900 tracking-tight">
+            Drop Files
           </h3>
 
-          {/* Action Buttons */}
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+          {/* Action Buttons - 1 word each */}
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-md shadow-indigo-600/20 transition-all hover:scale-105 active:scale-95"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-xs transition-all hover:scale-105 active:scale-95"
             >
-              <FileText className="w-4 h-4" />
-              <span>{lang === 'hi' ? 'Files Chunein' : 'Select Files'}</span>
+              <FileText className="w-3.5 h-3.5" />
+              <span>Files</span>
             </button>
 
             <button
               onClick={() => folderInputRef.current?.click()}
               className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-2xs flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95"
             >
-              <FolderUp className="w-4 h-4 text-cyan-600" />
-              <span>{lang === 'hi' ? 'Folder Chunein' : 'Select Folder'}</span>
+              <FolderUp className="w-3.5 h-3.5 text-cyan-600" />
+              <span>Folder</span>
             </button>
 
             <button
               onClick={() => cameraInputRef.current?.click()}
               className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-2xs flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 sm:hidden"
             >
-              <Camera className="w-4 h-4 text-emerald-600" />
-              <span>{lang === 'hi' ? 'Camera' : 'Camera'}</span>
+              <Camera className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Camera</span>
             </button>
           </div>
 
           {!isPeerConnected && (
-            <div className="mt-4 pt-3 border-t border-slate-200/80 w-full flex items-center justify-center gap-2 text-xs">
+            <div className="mt-3 pt-2.5 border-t border-slate-200/80 w-full flex items-center justify-center gap-1 text-xs">
               <button
                 onClick={onOpenQR}
-                className="underline font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-0.5"
+                className="font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-0.5"
               >
-                <span>{lang === 'hi' ? 'Pairing QR Code Kholein' : 'Open Pairing QR Code'}</span>
+                <span>Pair QR</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -164,16 +161,16 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
         </div>
       </div>
 
-      {/* Staged Files Preview (if selected before peer connected) */}
+      {/* Staged Files Preview */}
       {stagedFiles.length > 0 && (
-        <div className="p-4 bg-white/85 backdrop-blur-2xl border border-white/80 rounded-2xl shadow-md space-y-3">
+        <div className="p-3.5 bg-white/85 backdrop-blur-2xl border border-white/80 rounded-2xl shadow-md space-y-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                {lang === 'hi' ? 'Selected Files' : 'Selected Files'}
+              <span className="text-xs font-bold text-slate-800">
+                Selected
               </span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold">
-                {stagedFiles.length} files ({formatBytes(totalStagedSize)})
+                {stagedFiles.length} ({formatBytes(totalStagedSize)})
               </span>
             </div>
 
@@ -181,7 +178,7 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
               onClick={() => setStagedFiles([])}
               className="text-xs text-slate-400 hover:text-rose-600 transition-colors"
             >
-              {lang === 'hi' ? 'Clear' : 'Clear All'}
+              Clear
             </button>
           </div>
 
@@ -208,18 +205,14 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
             ))}
           </div>
 
-          <div className="pt-2 flex justify-end">
+          <div className="pt-1 flex justify-end">
             <button
               onClick={handleSendStaged}
               disabled={!isPeerConnected}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-colors shadow-md shadow-emerald-600/20"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>
-                {isPeerConnected
-                  ? (lang === 'hi' ? 'Abhi Send Karein' : 'Send Now')
-                  : (lang === 'hi' ? 'Pehle Device Connect Karein' : 'Connect Device First')}
-              </span>
+              <span>{isPeerConnected ? 'Send' : 'Connect First'}</span>
             </button>
           </div>
         </div>
