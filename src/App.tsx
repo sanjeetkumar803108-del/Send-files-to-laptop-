@@ -12,7 +12,7 @@ import { QRScannerModal } from './components/QRScannerModal';
 import { HotspotGuideModal } from './components/HotspotGuideModal';
 import { FilePreviewModal } from './components/FilePreviewModal';
 import { LaptopPairingHero } from './components/LaptopPairingHero';
-import { Wifi, AlertCircle, ShieldCheck, CheckCircle2, Laptop, Copy, Check, Camera } from 'lucide-react';
+import { Wifi, AlertCircle, ShieldCheck, CheckCircle2, Laptop, Copy, Check, Camera, Share2 } from 'lucide-react';
 
 export default function App() {
   const [roomId, setRoomId] = useState<string>(() => {
@@ -301,6 +301,36 @@ export default function App() {
     }
   };
 
+  const shareAppUrl = async () => {
+    const pubUrl = getPublicAppUrl();
+    if (!pubUrl) return;
+
+    if (navigator.share) {
+      try {
+        // "jisko share karne par sirf link text hi share hona achhaiye bhai"
+        await navigator.share({
+          text: pubUrl,
+        });
+        showToast(lang === 'hi' ? 'Link share ho gaya' : 'Link shared', 'success');
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          try {
+            await navigator.share({ url: pubUrl });
+            showToast(lang === 'hi' ? 'Link share ho gaya' : 'Link shared', 'success');
+          } catch {
+            if (navigator.clipboard) {
+              await navigator.clipboard.writeText(pubUrl);
+              showToast(lang === 'hi' ? 'Link copy ho gaya' : 'Link copied', 'info');
+            }
+          }
+        }
+      }
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(pubUrl);
+      showToast(lang === 'hi' ? 'Link copy ho gaya' : 'Link copied', 'info');
+    }
+  };
+
   const isPeerConnected = peers.length > 0;
   const currentOrigin = getPublicAppUrl();
 
@@ -365,15 +395,25 @@ export default function App() {
               </span>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-white border border-[#E8E0D1] font-mono text-xs text-slate-700 truncate max-w-[170px] xs:max-w-[220px] sm:max-w-xs">
+            <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-white border border-[#E8E0D1] font-mono text-xs text-slate-700 truncate max-w-[130px] xs:max-w-[180px] sm:max-w-xs">
                 <span className="truncate">{currentOrigin}</span>
               </div>
               <button
                 onClick={copyAppUrl}
-                className="px-3.5 py-1.5 bg-[#185ADB] hover:bg-[#1246AB] text-white text-xs font-semibold rounded-xl shadow-xs shrink-0 transition-colors"
+                className="px-3 py-1.5 bg-[#185ADB] hover:bg-[#1246AB] text-white text-xs font-semibold rounded-xl shadow-xs shrink-0 transition-colors flex items-center gap-1"
+                title="Copy Link"
               >
-                {copiedAppUrl ? 'Copied' : 'Copy'}
+                <Copy className="w-3.5 h-3.5" />
+                <span>{copiedAppUrl ? 'Copied' : 'Copy'}</span>
+              </button>
+              <button
+                onClick={shareAppUrl}
+                className="px-3 py-1.5 bg-[#FF8A3D] hover:bg-[#E6762B] text-white text-xs font-semibold rounded-xl shadow-xs shrink-0 transition-colors flex items-center gap-1"
+                title="Share Link"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Share</span>
               </button>
             </div>
           </div>

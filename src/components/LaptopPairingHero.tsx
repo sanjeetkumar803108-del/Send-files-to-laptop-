@@ -5,6 +5,7 @@ import {
   Copy,
   Check,
   Smartphone,
+  Share2,
 } from 'lucide-react';
 import { getPublicAppUrl } from '../utils/format';
 
@@ -78,6 +79,32 @@ export const LaptopPairingHero: React.FC<LaptopPairingHeroProps> = ({ roomId, la
   const copyUrl = () => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(joinUrl);
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 2000);
+    }
+  };
+
+  const shareUrl = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          text: effectiveBaseUrl,
+        });
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          try {
+            await navigator.share({ url: effectiveBaseUrl });
+          } catch {
+            if (navigator.clipboard) {
+              await navigator.clipboard.writeText(effectiveBaseUrl);
+              setCopiedUrl(true);
+              setTimeout(() => setCopiedUrl(false), 2000);
+            }
+          }
+        }
+      }
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(effectiveBaseUrl);
       setCopiedUrl(true);
       setTimeout(() => setCopiedUrl(false), 2000);
     }
@@ -163,12 +190,22 @@ export const LaptopPairingHero: React.FC<LaptopPairingHeroProps> = ({ roomId, la
           <div className="mt-4 w-full max-w-xs text-center">
             <div className="p-1.5 px-2.5 rounded-xl bg-white border border-[#E8E0D1] font-mono text-[11px] text-slate-600 flex items-center justify-between truncate shadow-2xs">
               <span className="truncate">{effectiveBaseUrl}</span>
-              <button
-                onClick={copyUrl}
-                className="text-[10px] px-2.5 py-0.5 rounded bg-[#FAF8F5] hover:bg-[#F5F1E8] text-[#185ADB] shrink-0 ml-1.5 border border-[#E8E0D1] font-semibold"
-              >
-                {copiedUrl ? 'Copied' : 'Copy'}
-              </button>
+              <div className="flex items-center gap-1 shrink-0 ml-1.5">
+                <button
+                  onClick={copyUrl}
+                  className="text-[10px] px-2 py-0.5 rounded bg-[#FAF8F5] hover:bg-[#F5F1E8] text-[#185ADB] border border-[#E8E0D1] font-semibold flex items-center gap-0.5"
+                >
+                  <Copy className="w-2.5 h-2.5" />
+                  <span>{copiedUrl ? 'Copied' : 'Copy'}</span>
+                </button>
+                <button
+                  onClick={shareUrl}
+                  className="text-[10px] px-2 py-0.5 rounded bg-[#FF8A3D] hover:bg-[#E6762B] text-white font-semibold flex items-center gap-0.5 shadow-2xs"
+                >
+                  <Share2 className="w-2.5 h-2.5" />
+                  <span>Share</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -88,11 +88,14 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
     }
   };
 
-  const shareViaWhatsApp = () => {
-    const text = encodeURIComponent(
-      `Laptop me yeh link open karein aur files transfer karein:\n${joinUrl}\nPIN: ${roomId}`
-    );
-    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+  const shareLink = () => {
+    if (navigator.share) {
+      navigator.share({ text: effectiveBaseUrl }).catch(() => {
+        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(effectiveBaseUrl)}`, '_blank');
+      });
+    } else {
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(effectiveBaseUrl)}`, '_blank');
+    }
   };
 
   return (
@@ -154,12 +157,22 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
           {/* Quick URL Box */}
           <div className="mt-3 w-full p-2.5 rounded-xl bg-white border border-[#E8E0D1] font-mono text-[11px] text-slate-700 flex items-center justify-between truncate shadow-2xs">
             <span className="truncate">{effectiveBaseUrl}</span>
-            <button
-              onClick={copyUrl}
-              className="text-xs px-2.5 py-1 rounded bg-[#185ADB] hover:bg-[#1246AB] text-white shrink-0 ml-2 font-medium shadow-xs"
-            >
-              {copiedUrl ? 'Copied' : 'Copy'}
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+              <button
+                onClick={copyUrl}
+                className="text-xs px-2.5 py-1 rounded bg-[#185ADB] hover:bg-[#1246AB] text-white font-medium shadow-xs flex items-center gap-1"
+              >
+                <Copy className="w-3 h-3" />
+                <span>{copiedUrl ? 'Copied' : 'Copy'}</span>
+              </button>
+              <button
+                onClick={shareLink}
+                className="text-xs px-2.5 py-1 rounded bg-[#FF8A3D] hover:bg-[#E6762B] text-white font-medium shadow-xs flex items-center gap-1"
+              >
+                <Share2 className="w-3 h-3" />
+                <span>Share</span>
+              </button>
+            </div>
           </div>
 
           {/* Action Row - Cobalt & Tangerine */}
@@ -178,7 +191,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
             )}
 
             <button
-              onClick={shareViaWhatsApp}
+              onClick={shareLink}
               className="px-3 py-2 bg-[#FF8A3D] hover:bg-[#E66F20] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md shadow-[#FF8A3D]/20 transition-colors"
             >
               <Share2 className="w-4 h-4" />
