@@ -32,8 +32,21 @@ export function setupSignalingServer(httpServer: any) {
       }
     }, 20000);
 
-    ws.on('message', (messageBuffer) => {
+    ws.on('message', (messageBuffer: any, isBinary: boolean) => {
       try {
+        // Fast-path: forward raw binary file chunks directly without JSON/string parsing
+        if (isBinary) {
+          if (!currentRoomId || !currentPeerId) return;
+          const room = rooms.get(currentRoomId);
+          if (!room) return;
+          room.peers.forEach((peer, pId) => {
+            if (pId !== currentPeerId && peer.ws.readyState === WebSocket.OPEN) {
+              peer.ws.send(messageBuffer, { binary: true });
+            }
+          });
+          return;
+        }
+
         const messageStr = messageBuffer.toString();
         const msg = JSON.parse(messageStr);
 

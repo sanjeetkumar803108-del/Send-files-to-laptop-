@@ -1,9 +1,10 @@
 import { PeerDevice, ConnectionMode, TransferProgress, SharedSnippet } from '../types/transfer';
 import { playStartChime, playSuccessChime } from '../utils/audio';
 
-const CHUNK_SIZE = 64 * 1024; // 64 KB standard chunk
-const BUFFERED_THRESHOLD = 2 * 1024 * 1024; // 2 MB buffer backpressure limit
-const LOW_BUFFER_THRESHOLD = 256 * 1024; // 256 KB threshold to resume sending
+const CHUNK_SIZE = 128 * 1024; // 128 KB high-speed chunks
+const READ_BLOCK_SIZE = 4 * 1024 * 1024; // 4 MB fast disk read block
+const BUFFERED_THRESHOLD = 8 * 1024 * 1024; // 8 MB pipeline to saturate Wi-Fi speed
+const LOW_BUFFER_THRESHOLD = 1 * 1024 * 1024; // 1 MB resume threshold
 
 export type ConnectionCallback = (mode: ConnectionMode) => void;
 export type PeersCallback = (peers: PeerDevice[]) => void;
@@ -157,6 +158,7 @@ export class TransferEngine {
       const wsUrl = customWs || `${wsProtocol}//${window.location.host}/ws`;
 
       this.ws = new WebSocket(wsUrl);
+      this.ws.binaryType = 'arraybuffer';
 
       this.ws.onopen = () => {
         // Register peer to room
@@ -172,6 +174,12 @@ export class TransferEngine {
       };
 
       this.ws.onmessage = (event) => {
+        // Raw ultra-fast binary frame received
+        if (event.data instanceof ArrayBuffer) {
+          this.handleIncomingBinaryChunk(event.data);
+          return;
+        }
+
         try {
           const msg = JSON.parse(event.data);
           this.handleSignalingMessage(msg);
@@ -746,7 +754,7 @@ export class TransferEngine {
     const fileId = 'file_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     const peerName = this.getPeerName(targetPeerId);
     const isDirectP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
-    const chunkSize = isDirectP2P ? CHUNK_SIZE : 32 * 1024;
+    const chunkSize = CHUNK_SIZE; // 128 KB
     const totalChunks = Math.ceil(file.size / chunkSize);
 
     const progress: TransferProgress = {
@@ -806,102 +814,93 @@ export class TransferEngine {
       let lastBytesSent = 0;
       const fileIdHash = this.hashString(fileId);
 
+      // Fast block-buffered streaming: reads 4 MB blocks to slash disk I/O latency
       while (offset < file.size) {
         if (this.cancelledTransfers.has(fileId)) {
           break;
         }
 
-        // Read chunk
-        const slice = file.slice(offset, offset + chunkSize);
-        const chunkBuffer = await slice.arrayBuffer();
+        const blockEnd = Math.min(file.size, offset + READ_BLOCK_SIZE);
+        const blockSlice = file.slice(offset, blockEnd);
+        const blockBuffer = await blockSlice.arrayBuffer();
+        const blockBytes = new Uint8Array(blockBuffer);
 
-        if (isDirectP2P) {
-          // Backpressure flow control for WebRTC: pause if buffer is full with safety timeout
-          if (this.dataChannel!.bufferedAmount > BUFFERED_THRESHOLD) {
-            await new Promise<void>((resolve) => {
-              if (!this.dataChannel || this.dataChannel.readyState !== 'open') return resolve();
-              let timeoutId: any;
-              const onLow = () => {
-                clearTimeout(timeoutId);
-                this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
-                resolve();
-              };
-              timeoutId = setTimeout(() => {
-                this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
-                resolve();
-              }, 600);
-              this.dataChannel.addEventListener('bufferedamountlow', onLow);
-            });
+        let blockPos = 0;
+        while (blockPos < blockBytes.byteLength) {
+          if (this.cancelledTransfers.has(fileId)) {
+            break;
           }
 
-          // Pack 12-byte header + binary chunk payload
-          const packet = new Uint8Array(12 + chunkBuffer.byteLength);
+          const currentChunkLength = Math.min(chunkSize, blockBytes.byteLength - blockPos);
+          const chunkPayload = blockBytes.subarray(blockPos, blockPos + currentChunkLength);
+
+          // 12-byte header: [uint32 fileIdHash, uint32 chunkIndex, uint32 totalChunks]
+          const packet = new Uint8Array(12 + chunkPayload.byteLength);
           const view = new DataView(packet.buffer);
           view.setUint32(0, fileIdHash);
           view.setUint32(4, chunkIndex);
           view.setUint32(8, totalChunks);
-          packet.set(new Uint8Array(chunkBuffer), 12);
+          packet.set(chunkPayload, 12);
 
-          this.dataChannel!.send(packet.buffer);
-        } else {
-          // Fast batch binary to base64 conversion
-          const bytes = new Uint8Array(chunkBuffer);
-          let binary = '';
-          const batchSize = 8192;
-          for (let i = 0; i < bytes.byteLength; i += batchSize) {
-            binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + batchSize)));
-          }
-          const base64 = btoa(binary);
+          if (isDirectP2P) {
+            // Keep buffer filled up to 8MB for non-stop saturating throughput
+            if (this.dataChannel!.bufferedAmount > BUFFERED_THRESHOLD) {
+              await new Promise<void>((resolve) => {
+                if (!this.dataChannel || this.dataChannel.readyState !== 'open') return resolve();
+                let timeoutId: any;
+                const onLow = () => {
+                  clearTimeout(timeoutId);
+                  this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
+                  resolve();
+                };
+                timeoutId = setTimeout(() => {
+                  this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
+                  resolve();
+                }, 400);
+                this.dataChannel.addEventListener('bufferedamountlow', onLow);
+              });
+            }
 
-          // Flow control for WebSocket relay
-          while (this.ws && this.ws.bufferedAmount > 256 * 1024) {
-            await new Promise((r) => setTimeout(r, 20));
-          }
-
-          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(
-              JSON.stringify({
-                type: 'relay-chunk',
-                targetPeerId,
-                fileId,
-                chunkIndex,
-                totalChunks,
-                data: base64,
-              })
-            );
+            this.dataChannel!.send(packet.buffer);
           } else {
-            throw new Error('Connection closed during relay transfer');
+            // Direct Raw Binary over WebSocket (0% Base64 overhead, full wire speed)
+            while (this.ws && this.ws.bufferedAmount > 4 * 1024 * 1024) {
+              await new Promise((r) => setTimeout(r, 10));
+            }
+
+            if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+              throw new Error('WebSocket connection interrupted during transfer');
+            }
+
+            this.ws.send(packet.buffer);
           }
 
-          if (chunkIndex % 4 === 0) {
-            await new Promise((r) => setTimeout(r, 8));
+          blockPos += currentChunkLength;
+          offset += currentChunkLength;
+          bytesSent += currentChunkLength;
+          chunkIndex++;
+
+          // Throttle UI updates to 150ms to keep 100% CPU focused on network throughput
+          const now = Date.now();
+          if (now - lastProgressTime > 150 || offset >= file.size) {
+            const timeDiff = (now - lastProgressTime) / 1000;
+            let speed = 0;
+            if (timeDiff > 0.05) {
+              speed = (bytesSent - lastBytesSent) / timeDiff;
+              lastProgressTime = now;
+              lastBytesSent = bytesSent;
+            }
+
+            const percent = Math.min(100, Math.round((bytesSent / file.size) * 100));
+            const remainingBytes = Math.max(0, file.size - bytesSent);
+            const eta = speed > 0 ? remainingBytes / speed : 0;
+
+            progress.transferredBytes = bytesSent;
+            progress.progressPercent = percent;
+            progress.speedBytesPerSec = Math.round(speed);
+            progress.etaSeconds = eta;
+            this.notifyProgress();
           }
-        }
-
-        offset += chunkBuffer.byteLength;
-        bytesSent += chunkBuffer.byteLength;
-        chunkIndex++;
-
-        // Update progress metrics
-        const now = Date.now();
-        if (now - lastProgressTime > 150 || offset >= file.size) {
-          const timeDiff = (now - lastProgressTime) / 1000;
-          let speed = 0;
-          if (timeDiff > 0.05) {
-            speed = (bytesSent - lastBytesSent) / timeDiff;
-            lastProgressTime = now;
-            lastBytesSent = bytesSent;
-          }
-
-          const percent = Math.min(100, Math.round((bytesSent / file.size) * 100));
-          const remainingBytes = Math.max(0, file.size - bytesSent);
-          const eta = speed > 0 ? remainingBytes / speed : 0;
-
-          progress.transferredBytes = bytesSent;
-          progress.progressPercent = percent;
-          progress.speedBytesPerSec = Math.round(speed);
-          progress.etaSeconds = eta;
-          this.notifyProgress();
         }
       }
 
