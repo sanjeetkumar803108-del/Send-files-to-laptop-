@@ -45,18 +45,18 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const isText = textContent !== null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-2xl bg-white/95 border border-white/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] backdrop-blur-2xl">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+        <div className="px-5 py-4 border-b border-slate-200/80 flex items-center justify-between bg-slate-50/80">
           <div className="flex items-center gap-2.5 truncate pr-3">
-            {isImage && <ImageIcon className="w-5 h-5 text-indigo-400 shrink-0" />}
-            {isVideo && <Film className="w-5 h-5 text-cyan-400 shrink-0" />}
-            {isAudio && <Music className="w-5 h-5 text-emerald-400 shrink-0" />}
-            {!isImage && !isVideo && !isAudio && <FileText className="w-5 h-5 text-slate-400 shrink-0" />}
+            {isImage && <ImageIcon className="w-5 h-5 text-indigo-600 shrink-0" />}
+            {isVideo && <Film className="w-5 h-5 text-cyan-600 shrink-0" />}
+            {isAudio && <Music className="w-5 h-5 text-emerald-600 shrink-0" />}
+            {!isImage && !isVideo && !isAudio && <FileText className="w-5 h-5 text-slate-500 shrink-0" />}
             <div className="truncate">
-              <h3 className="text-sm font-bold text-white truncate">{name}</h3>
-              <p className="text-[11px] text-slate-400">{formatBytes(size)} • {type || 'File'}</p>
+              <h3 className="text-sm font-bold text-slate-900 truncate">{name}</h3>
+              <p className="text-[11px] text-slate-500">{formatBytes(size)} • {type || 'File'}</p>
             </div>
           </div>
 
@@ -65,7 +65,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               <a
                 href={downloadUrl}
                 download={name}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors"
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>{lang === 'hi' ? 'Download' : 'Download'}</span>
@@ -73,7 +73,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             )}
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+              className="p-1.5 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-200/60 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -81,12 +81,12 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         </div>
 
         {/* Content Viewer */}
-        <div className="p-4 flex-1 overflow-auto flex items-center justify-center bg-slate-950/40 min-h-[300px]">
+        <div className="p-4 flex-1 overflow-auto flex items-center justify-center bg-slate-50/40 min-h-[300px]">
           {isImage && downloadUrl && (
             <img
               src={downloadUrl}
               alt={name}
-              className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-md"
+              className="max-h-[60vh] max-w-full object-contain rounded-xl shadow-md"
             />
           )}
 
@@ -95,28 +95,28 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               src={downloadUrl}
               controls
               autoPlay
-              className="max-h-[60vh] max-w-full rounded-lg shadow-md"
+              className="max-h-[60vh] max-w-full rounded-xl shadow-md"
             />
           )}
 
           {isAudio && downloadUrl && (
-            <div className="w-full max-w-md p-6 bg-slate-900 border border-slate-800 rounded-xl text-center space-y-4">
-              <Music className="w-12 h-12 text-emerald-400 mx-auto animate-pulse" />
-              <p className="text-sm font-semibold text-white">{name}</p>
+            <div className="w-full max-w-md p-6 bg-white border border-slate-200 rounded-2xl text-center space-y-4 shadow-sm">
+              <Music className="w-12 h-12 text-emerald-600 mx-auto animate-pulse" />
+              <p className="text-sm font-bold text-slate-800">{name}</p>
               <audio src={downloadUrl} controls className="w-full" autoPlay />
             </div>
           )}
 
           {isText && (
-            <pre className="w-full h-full max-h-[55vh] p-4 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono text-slate-200 overflow-auto whitespace-pre-wrap">
+            <pre className="w-full h-full max-h-[55vh] p-4 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 overflow-auto whitespace-pre-wrap shadow-inner">
               {textContent}
             </pre>
           )}
 
           {!isImage && !isVideo && !isAudio && !isText && (
             <div className="text-center py-10 space-y-3">
-              <FileText className="w-16 h-16 text-slate-600 mx-auto" />
-              <p className="text-sm text-slate-400">
+              <FileText className="w-16 h-16 text-slate-300 mx-auto" />
+              <p className="text-sm text-slate-600">
                 {lang === 'hi'
                   ? 'Is file type ka in-app preview available nahi hai. Download karke open karein.'
                   : 'No in-app preview available for this file type. Click download to open.'}
@@ -125,7 +125,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 <a
                   href={downloadUrl}
                   download={name}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20"
                 >
                   <Download className="w-4 h-4" />
                   <span>{lang === 'hi' ? 'Abhi Download Karein' : 'Download File'}</span>

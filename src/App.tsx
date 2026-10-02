@@ -300,21 +300,26 @@ export default function App() {
   const currentOrigin = getPublicAppUrl();
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-slate-50/90 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white relative overflow-x-hidden">
+      {/* Ambient Glassmorphic Mesh Glows */}
+      <div className="fixed top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-br from-indigo-200/40 via-purple-200/30 to-pink-200/20 blur-[130px] pointer-events-none -z-10" />
+      <div className="fixed bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-tl from-cyan-200/40 via-sky-200/30 to-emerald-200/20 blur-[130px] pointer-events-none -z-10" />
+      <div className="fixed top-[35%] right-[15%] w-[35vw] h-[35vw] rounded-full bg-gradient-to-tr from-violet-200/20 to-blue-200/20 blur-[110px] pointer-events-none -z-10" />
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
-          <div className={`px-4 py-2.5 rounded-xl shadow-2xl border flex items-center gap-2.5 text-xs font-semibold backdrop-blur-md ${
+          <div className={`px-4 py-2.5 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-semibold backdrop-blur-xl ${
             toastMessage.type === 'success'
-              ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/40'
+              ? 'bg-white/90 text-emerald-700 border-emerald-200/80 shadow-emerald-500/10'
               : toastMessage.type === 'error'
-              ? 'bg-rose-950/90 text-rose-300 border-rose-500/40'
-              : 'bg-indigo-950/90 text-indigo-300 border-indigo-500/40'
+              ? 'bg-white/90 text-rose-700 border-rose-200/80 shadow-rose-500/10'
+              : 'bg-white/90 text-indigo-700 border-indigo-200/80 shadow-indigo-500/10'
           }`}>
             {toastMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-amber-400" />
+              <AlertCircle className="w-4 h-4 text-amber-500" />
             )}
             <span>{toastMessage.text}</span>
           </div>
