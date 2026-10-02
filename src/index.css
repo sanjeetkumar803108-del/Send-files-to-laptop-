@@ -56,3 +56,27 @@
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(232, 224, 209, 0.9);
 }
+
+/* Custom Horizontal Scrollbar for Link Boxes */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #E8E0D1 transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #E8E0D1;
+  border-radius: 9999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #185ADB;
+}

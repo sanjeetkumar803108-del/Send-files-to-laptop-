@@ -155,8 +155,10 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
           </div>
 
           {/* Quick URL Box */}
-          <div className="mt-3 w-full p-2.5 rounded-xl bg-white border border-[#E8E0D1] font-mono text-[11px] text-slate-700 flex items-center justify-between truncate shadow-2xs">
-            <span className="truncate">{effectiveBaseUrl}</span>
+          <div className="mt-3 w-full p-2.5 rounded-xl bg-white border border-[#E8E0D1] font-mono text-[11px] text-slate-700 flex items-center justify-between shadow-2xs gap-1.5 min-w-0">
+            <div className="overflow-x-auto whitespace-nowrap scrollbar-thin select-all flex-1 text-left min-w-0 py-0.5">
+              <span>{effectiveBaseUrl}</span>
+            </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-2">
               <button
                 onClick={copyUrl}

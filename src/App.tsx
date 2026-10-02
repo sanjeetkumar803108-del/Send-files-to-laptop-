@@ -395,9 +395,9 @@ export default function App() {
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
-              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-white border border-[#E8E0D1] font-mono text-xs text-slate-700 truncate max-w-[130px] xs:max-w-[180px] sm:max-w-xs">
-                <span className="truncate">{currentOrigin}</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto min-w-0">
+              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-white border border-[#E8E0D1] font-mono text-xs text-slate-700 overflow-x-auto whitespace-nowrap scrollbar-thin select-all min-w-0 max-w-full sm:max-w-xs">
+                <span>{currentOrigin}</span>
               </div>
               <button
                 onClick={copyAppUrl}

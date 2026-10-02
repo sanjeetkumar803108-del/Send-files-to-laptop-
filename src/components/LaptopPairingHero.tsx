@@ -188,8 +188,10 @@ export const LaptopPairingHero: React.FC<LaptopPairingHeroProps> = ({ roomId, la
           </div>
 
           <div className="mt-4 w-full max-w-xs text-center">
-            <div className="p-1.5 px-2.5 rounded-xl bg-white border border-[#E8E0D1] font-mono text-[11px] text-slate-600 flex items-center justify-between truncate shadow-2xs">
-              <span className="truncate">{effectiveBaseUrl}</span>
+            <div className="p-1.5 px-2.5 rounded-xl bg-white border border-[#E8E0D1] font-mono text-[11px] text-slate-600 flex items-center justify-between shadow-2xs gap-1.5 min-w-0">
+              <div className="overflow-x-auto whitespace-nowrap scrollbar-thin select-all flex-1 text-left min-w-0 py-0.5">
+                <span>{effectiveBaseUrl}</span>
+              </div>
               <div className="flex items-center gap-1 shrink-0 ml-1.5">
                 <button
                   onClick={copyUrl}
