@@ -54,7 +54,7 @@ export default function App() {
   });
 
   // UI state
-  const [lang, setLang] = useState<'hi' | 'en'>('hi');
+  const lang: 'en' = 'en';
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
@@ -332,8 +332,6 @@ export default function App() {
         connectionMode={connectionMode}
         connectedCount={peers.length}
         deviceType={deviceType}
-        lang={lang}
-        onToggleLang={() => setLang(lang === 'hi' ? 'en' : 'hi')}
         onOpenQR={() => setIsQrOpen(true)}
         onOpenScanner={() => setIsScannerOpen(true)}
         onOpenGuide={() => setIsGuideOpen(true)}

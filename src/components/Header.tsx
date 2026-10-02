@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wifi, QrCode, HelpCircle, Copy, Check, Globe } from 'lucide-react';
+import { Wifi, QrCode, HelpCircle, Copy, Check } from 'lucide-react';
 import { ConnectionMode } from '../types/transfer';
 
 interface HeaderProps {
@@ -7,8 +7,6 @@ interface HeaderProps {
   connectionMode: ConnectionMode;
   connectedCount: number;
   deviceType?: 'mobile' | 'laptop';
-  lang: 'hi' | 'en';
-  onToggleLang: () => void;
   onOpenQR: () => void;
   onOpenScanner?: () => void;
   onOpenGuide: () => void;
@@ -16,8 +14,6 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   roomId,
-  lang,
-  onToggleLang,
   onOpenQR,
   onOpenGuide,
 }) => {
@@ -44,12 +40,12 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </div>
 
-        {/* Action Controls - Clean & 1-2 words only */}
+        {/* Action Controls */}
         <div className="flex items-center gap-2">
           {/* PIN Pill */}
           <button
             onClick={copyPin}
-            title={lang === 'hi' ? 'PIN copy karein' : 'Copy PIN'}
+            title="Copy PIN"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/80 hover:bg-white border border-slate-200/90 text-slate-700 text-xs font-mono font-medium shadow-xs transition-all hover:shadow-sm"
           >
             <span className="text-slate-400 font-sans text-[11px]">PIN:</span>
@@ -57,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
             {copiedPin ? <Check className="w-3.5 h-3.5 text-emerald-600 ml-0.5" /> : <Copy className="w-3.5 h-3.5 text-slate-400 ml-0.5" />}
           </button>
 
-          {/* Hotspot Guide Button - 1 word */}
+          {/* Hotspot Guide Button */}
           <button
             onClick={onOpenGuide}
             className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white/80 hover:bg-white border border-slate-200/90 shadow-xs flex items-center gap-1.5 transition-all hover:shadow-sm"
@@ -67,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden xs:inline">Guide</span>
           </button>
 
-          {/* QR Code Button - 1 word */}
+          {/* QR Code Button */}
           <button
             onClick={onOpenQR}
             className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white/80 hover:bg-white border border-slate-200/90 shadow-xs flex items-center gap-1.5 transition-all hover:shadow-sm"
@@ -75,16 +71,6 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <QrCode className="w-3.5 h-3.5 text-indigo-600" />
             <span className="hidden xs:inline">QR</span>
-          </button>
-
-          {/* Language Toggle */}
-          <button
-            onClick={onToggleLang}
-            className="px-2 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 bg-white/80 hover:bg-white border border-slate-200/90 shadow-xs flex items-center gap-1 transition-all"
-            title="Language"
-          >
-            <Globe className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-[11px]">{lang === 'hi' ? 'EN' : 'हिन्दी'}</span>
           </button>
         </div>
       </div>
