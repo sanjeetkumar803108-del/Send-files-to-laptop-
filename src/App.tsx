@@ -41,8 +41,12 @@ export default function App() {
   const [transfers, setTransfers] = useState<TransferProgress[]>([]);
   const [snippets, setSnippets] = useState<SharedSnippet[]>([]);
   const [autoDownload, setAutoDownload] = useState<boolean>(() => {
-    // Enable auto-download by default on laptop
-    return detectDeviceType() === 'laptop';
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('hotspot_drop_autodownload');
+      if (saved !== null) return saved === 'true';
+    }
+    // Always default to true so incoming files go directly to File Manager without clicking Save
+    return true;
   });
 
   // UI state
