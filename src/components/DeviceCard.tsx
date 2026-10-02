@@ -163,35 +163,35 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
         {/* Center Connecting Bridge with Continuous Animation */}
         <div className="flex-1 flex flex-col items-center justify-center relative min-w-[65px] xs:min-w-[85px] sm:min-w-[140px] px-1 sm:px-3">
           {hasPeer ? (
-            /* Continuous Active Connection Animation */
-            <div className="w-full flex flex-col items-center justify-center relative">
+            /* Continuous Active Connection Animation - Hardware Accelerated & Clamped */
+            <div className="w-full flex flex-col items-center justify-center relative transform-gpu">
               {/* Continuous Flowing Energy Beam */}
-              <div className="w-full h-1.5 sm:h-2 rounded-full animate-flow-beam relative overflow-hidden shadow-[0_0_12px_rgba(16,185,129,0.6)]">
+              <div className="w-full h-1.5 sm:h-2 rounded-full animate-flow-beam relative overflow-hidden shadow-[0_0_10px_rgba(16,185,129,0.5)] transform-gpu">
                 {/* Moving Pulses Travelling back and forth */}
-                <div className="travel-pulse-right absolute top-1/2 w-4 sm:w-6 h-full bg-white rounded-full blur-[1px]" />
-                <div className="travel-pulse-left absolute top-1/2 w-4 sm:w-6 h-full bg-emerald-200 rounded-full blur-[1px]" />
+                <div className="travel-pulse-right absolute top-0 w-4 sm:w-6 h-full bg-white rounded-full blur-[1px]" />
+                <div className="travel-pulse-left absolute top-0 w-4 sm:w-6 h-full bg-emerald-200 rounded-full blur-[1px]" />
               </div>
 
-              {/* Glowing Pulse Particles */}
-              <div className="w-full relative h-2 -mt-1 pointer-events-none">
-                <div className="travel-pulse-right absolute top-0 w-2 h-2 rounded-full bg-[#10B981] shadow-[0_0_8px_#10B981]" />
-                <div className="travel-pulse-left absolute top-0 w-2 h-2 rounded-full bg-[#FF8A3D] shadow-[0_0_8px_#FF8A3D]" />
+              {/* Glowing Pulse Particles - Strictly Clamped Inside overflow-hidden */}
+              <div className="w-full relative h-2 -mt-1 pointer-events-none overflow-hidden transform-gpu">
+                <div className="travel-pulse-right absolute top-0 w-2 h-2 rounded-full bg-[#10B981] shadow-[0_0_6px_#10B981]" />
+                <div className="travel-pulse-left absolute top-0 w-2 h-2 rounded-full bg-[#FF8A3D] shadow-[0_0_6px_#FF8A3D]" />
               </div>
 
               {/* Connected Badge */}
               <div className="mt-2 sm:mt-3">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 text-[10px] sm:text-xs font-bold shadow-xs whitespace-nowrap">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span>Connected</span>
                 </span>
               </div>
             </div>
           ) : (
             /* Waiting/Connecting State */
-            <div className="w-full flex flex-col items-center justify-center">
+            <div className="w-full flex flex-col items-center justify-center transform-gpu">
               {/* Dashed line bridge */}
-              <div className="w-full border-t-2 border-dashed border-[#DFD5C0] relative">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#FF8A3D] animate-ping" />
+              <div className="w-full border-t-2 border-dashed border-[#DFD5C0] relative overflow-hidden h-1">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[#FF8A3D] animate-pulse" />
               </div>
 
               {/* Waiting Status */}

@@ -332,25 +332,31 @@ export class TransferEngine {
       this.ws.onclose = () => {
         console.warn('Signaling socket closed');
         if (this.connectionMode !== 'direct_p2p') {
-          this.connectedPeers = [];
-          this.onPeersChange?.([]);
+          if (this.connectedPeers.length > 0) {
+            this.connectedPeers = [];
+            this.onPeersChange?.([]);
+          }
           this.setMode('disconnected');
+          let hasActive = false;
           this.transfers.forEach((progress) => {
             if (progress.status === 'transferring' || progress.status === 'queued') {
               progress.status = 'error';
               progress.speedBytesPerSec = 0;
               this.onTransferError?.(progress.name, 'Connection lost');
+              hasActive = true;
             }
           });
-          this.notifyProgress();
+          if (hasActive) {
+            this.notifyProgress();
+          }
         }
-        // Attempt fast reconnection
+        // Attempt reconnection cleanly without tight looping
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => {
           if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
             this.connectSignaling();
           }
-        }, 2000);
+        }, 3500);
       };
 
       this.ws.onerror = (err) => {

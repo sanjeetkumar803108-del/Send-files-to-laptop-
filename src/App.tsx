@@ -100,10 +100,22 @@ export default function App() {
         }
       },
       (connectedPeers) => {
-        setPeers(connectedPeers);
+        setPeers((prev) => {
+          if (prev.length === 0 && connectedPeers.length === 0) return prev;
+          if (
+            prev.length === connectedPeers.length &&
+            prev.every((p, i) => p.id === connectedPeers[i]?.id && p.name === connectedPeers[i]?.name)
+          ) {
+            return prev;
+          }
+          return connectedPeers;
+        });
       },
       (items) => {
-        setTransfers([...items]);
+        setTransfers((prev) => {
+          if (prev.length === 0 && items.length === 0) return prev;
+          return [...items];
+        });
       },
       (newSnippet) => {
         setSnippets((prev) => [newSnippet, ...prev]);
@@ -360,11 +372,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#F5F1E8] text-slate-900 flex flex-col font-sans selection:bg-[#185ADB] selection:text-white relative">
-      {/* Ambient Glassmorphic Mesh Glows - Mixing Cobalt Blue (#185ADB) and Tangerine (#FF8A3D) over Cream Linen (#F5F1E8) */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div className="absolute top-[-10%] left-[-10%] w-[55vw] h-[55vw] rounded-full bg-gradient-to-br from-[#185ADB]/20 via-[#185ADB]/10 to-transparent blur-[130px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[55vw] h-[55vw] rounded-full bg-gradient-to-tl from-[#FF8A3D]/25 via-[#FF8A3D]/10 to-transparent blur-[130px]" />
-        <div className="absolute top-[35%] right-[10%] w-[40vw] h-[40vw] rounded-full bg-gradient-to-tr from-[#185ADB]/15 to-[#FF8A3D]/15 blur-[110px]" />
+      {/* Ambient Glassmorphic Mesh Glows - Hardware Accelerated to prevent flickering */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10 transform-gpu will-change-transform">
+        <div className="absolute top-[-10%] left-[-10%] w-[55vw] h-[55vw] rounded-full bg-gradient-to-br from-[#185ADB]/12 via-[#185ADB]/6 to-transparent blur-[70px] transform-gpu" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[55vw] h-[55vw] rounded-full bg-gradient-to-tl from-[#FF8A3D]/15 via-[#FF8A3D]/6 to-transparent blur-[70px] transform-gpu" />
+        <div className="absolute top-[35%] right-[10%] w-[40vw] h-[40vw] rounded-full bg-gradient-to-tr from-[#185ADB]/10 to-[#FF8A3D]/10 blur-[60px] transform-gpu" />
       </div>
 
       {/* Toast Notification */}

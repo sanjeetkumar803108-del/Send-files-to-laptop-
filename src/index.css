@@ -95,16 +95,16 @@
   0% {
     left: 0%;
     opacity: 0.2;
-    transform: translateY(-50%) scale(0.7);
+    transform: scale(0.8) translateZ(0);
   }
   50% {
     opacity: 1;
-    transform: translateY(-50%) scale(1.2);
+    transform: scale(1.05) translateZ(0);
   }
   100% {
-    left: 100%;
+    left: calc(100% - 10px);
     opacity: 0.2;
-    transform: translateY(-50%) scale(0.7);
+    transform: scale(0.8) translateZ(0);
   }
 }
 
@@ -112,16 +112,16 @@
   0% {
     right: 0%;
     opacity: 0.2;
-    transform: translateY(-50%) scale(0.7);
+    transform: scale(0.8) translateZ(0);
   }
   50% {
     opacity: 1;
-    transform: translateY(-50%) scale(1.2);
+    transform: scale(1.05) translateZ(0);
   }
   100% {
-    right: 100%;
+    right: calc(100% - 10px);
     opacity: 0.2;
-    transform: translateY(-50%) scale(0.7);
+    transform: scale(0.8) translateZ(0);
   }
 }
 
@@ -129,12 +129,16 @@
   background: linear-gradient(90deg, #185ADB, #10B981, #FF8A3D, #185ADB);
   background-size: 300% 100%;
   animation: flowBeam 2.5s linear infinite;
+  transform: translateZ(0);
+  will-change: background-position;
 }
 
 .travel-pulse-right {
   animation: pulseTravelRight 1.8s ease-in-out infinite;
+  will-change: left, opacity, transform;
 }
 
 .travel-pulse-left {
   animation: pulseTravelLeft 1.8s ease-in-out infinite 0.9s;
+  will-change: right, opacity, transform;
 }
