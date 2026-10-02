@@ -48,7 +48,7 @@ export class TransferEngine {
   private activeReceiving: Map<string, ActiveReceivingFile> = new Map();
   private activeReceivingByHash: Map<number, ActiveReceivingFile> = new Map();
   private earlyChunksBuffer: Map<number, Array<{ chunkIndex: number; payload: Uint8Array }>> = new Map();
-  private sendQueue: { file: File; targetPeerId: string }[] = [];
+  private sendQueue: { fileId: string; file: File; targetPeerId: string }[] = [];
   private isSending = false;
   private cancelledTransfers = new Set<string>();
 
@@ -434,7 +434,7 @@ export class TransferEngine {
 
       // --- Fallback Relay Message Handlers ---
       case 'relay-meta': {
-        this.handleIncomingFileHeader(msg.fileId, msg.name, msg.size, msg.mimeType, msg.totalChunks, msg.fromPeerId || 'Unknown');
+        this.handleIncomingFileHeader(msg.fileId, msg.name, msg.size, msg.mimeType, msg.totalChunks, this.getPeerName(msg.fromPeerId));
         break;
       }
 
@@ -751,7 +751,15 @@ export class TransferEngine {
       return;
     }
 
-    playStartChime();
+    const isAnotherReceiving = Array.from(this.activeReceiving.values()).some(
+      (f) => f.receivedChunks < f.totalChunks && !this.cancelledTransfers.has(f.fileId)
+    );
+
+    const initialStatus = isAnotherReceiving ? 'queued' : 'transferring';
+
+    if (!isAnotherReceiving) {
+      playStartChime();
+    }
 
     const activeFile: ActiveReceivingFile = {
       fileId,
@@ -783,7 +791,7 @@ export class TransferEngine {
       progressPercent: 0,
       speedBytesPerSec: 0,
       etaSeconds: 0,
-      status: 'transferring',
+      status: initialStatus,
       direction: 'incoming',
       mode: this.connectionMode,
       peerName: senderName,
@@ -859,6 +867,15 @@ export class TransferEngine {
   }
 
   private applyChunk(targetFile: ActiveReceivingFile, chunkIndex: number, payload: Uint8Array) {
+    if (this.cancelledTransfers.has(targetFile.fileId)) return;
+
+    const progress = this.transfers.get(targetFile.fileId);
+    if (progress && progress.status === 'queued') {
+      progress.status = 'transferring';
+      playStartChime();
+      this.notifyProgress();
+    }
+
     if (targetFile.chunks[chunkIndex] === null) {
       targetFile.chunks[chunkIndex] = payload;
       targetFile.receivedBytes += payload.byteLength;
@@ -880,7 +897,6 @@ export class TransferEngine {
       const remainingBytes = Math.max(0, targetFile.size - targetFile.receivedBytes);
       const eta = targetFile.speed > 0 ? remainingBytes / targetFile.speed : 0;
 
-      const progress = this.transfers.get(targetFile.fileId);
       if (progress) {
         progress.transferredBytes = targetFile.receivedBytes;
         progress.progressPercent = percent;
@@ -938,6 +954,16 @@ export class TransferEngine {
     if (this.autoDownloadEnabled) {
       this.triggerDownload(downloadUrl, active.name);
     }
+
+    // Activate next queued incoming file if any exists
+    for (const otherProgress of this.transfers.values()) {
+      if (otherProgress.direction === 'incoming' && otherProgress.status === 'queued') {
+        otherProgress.status = 'transferring';
+        playStartChime();
+        this.notifyProgress();
+        break;
+      }
+    }
   }
 
   public triggerDownload(url: string, filename: string) {
@@ -951,6 +977,9 @@ export class TransferEngine {
 
   public cancelTransfer(fileId: string) {
     this.cancelledTransfers.add(fileId);
+    // Remove from sendQueue if pending
+    this.sendQueue = this.sendQueue.filter((item) => item.fileId !== fileId);
+
     const progress = this.transfers.get(fileId);
     if (progress && (progress.status === 'transferring' || progress.status === 'queued')) {
       progress.status = 'cancelled';
@@ -991,6 +1020,14 @@ export class TransferEngine {
     }
   }
 
+  public isBusy(): boolean {
+    if (this.isSending || this.sendQueue.length > 0) return true;
+    for (const t of this.transfers.values()) {
+      if (t.status === 'transferring') return true;
+    }
+    return false;
+  }
+
   // --- Sending Files ---
   public queueFiles(files: FileList | File[], targetPeerId?: string) {
     const peerId = targetPeerId || (this.connectedPeers[0] ? this.connectedPeers[0].id : null);
@@ -1006,11 +1043,35 @@ export class TransferEngine {
       throw new Error('Connection re-sync ho raha hai, 2 second baad dobara send karein.');
     }
 
+    const peerName = this.getPeerName(peerId);
+    const now = Date.now();
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      this.sendQueue.push({ file, targetPeerId: peerId });
+      const fileId = 'file_' + now + '_' + Math.random().toString(36).substring(2, 7) + '_' + i;
+
+      // Register immediately in transfers so user sees it in queue instantly
+      const progress: TransferProgress = {
+        fileId,
+        name: file.name,
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        transferredBytes: 0,
+        progressPercent: 0,
+        speedBytesPerSec: 0,
+        etaSeconds: 0,
+        status: 'queued',
+        direction: 'outgoing',
+        mode: isDirectP2P ? 'direct_p2p' : 'relay',
+        peerName,
+        timestamp: now + i,
+      };
+
+      this.transfers.set(fileId, progress);
+      this.sendQueue.push({ fileId, file, targetPeerId: peerId });
     }
 
+    this.notifyProgress();
     this.processSendQueue();
   }
 
@@ -1023,12 +1084,25 @@ export class TransferEngine {
         const item = this.sendQueue.shift();
         if (!item) break;
 
+        // Skip if user cancelled while queued
+        if (this.cancelledTransfers.has(item.fileId)) {
+          continue;
+        }
+
+        // Activate transfer status
+        const progress = this.transfers.get(item.fileId);
+        if (progress) {
+          progress.status = 'transferring';
+          progress.mode = this.connectionMode;
+          this.notifyProgress();
+        }
+
         // Resolve active target peer (prefer connected peer)
         const targetId = this.connectedPeers.some((p) => p.id === item.targetPeerId)
           ? item.targetPeerId
           : (this.connectedPeers[0]?.id || item.targetPeerId);
 
-        await this.sendFile(item.file, targetId);
+        await this.sendFile(item.file, item.fileId, targetId);
       }
     } catch (err) {
       console.error('Error processing send queue:', err);
@@ -1037,30 +1111,37 @@ export class TransferEngine {
     }
   }
 
-  private async sendFile(file: File, targetPeerId: string) {
-    const fileId = 'file_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+  private async sendFile(file: File, fileId: string, targetPeerId: string) {
+    if (this.cancelledTransfers.has(fileId)) return;
+
     const peerName = this.getPeerName(targetPeerId);
     const isDirectP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
     const chunkSize = CHUNK_SIZE; // 128 KB
     const totalChunks = Math.ceil(file.size / chunkSize);
 
-    const progress: TransferProgress = {
-      fileId,
-      name: file.name,
-      size: file.size,
-      type: file.type || 'application/octet-stream',
-      transferredBytes: 0,
-      progressPercent: 0,
-      speedBytesPerSec: 0,
-      etaSeconds: 0,
-      status: 'transferring',
-      direction: 'outgoing',
-      mode: isDirectP2P ? 'direct_p2p' : 'relay',
-      peerName,
-      timestamp: Date.now(),
-    };
+    let progress = this.transfers.get(fileId);
+    if (!progress) {
+      progress = {
+        fileId,
+        name: file.name,
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        transferredBytes: 0,
+        progressPercent: 0,
+        speedBytesPerSec: 0,
+        etaSeconds: 0,
+        status: 'transferring',
+        direction: 'outgoing',
+        mode: isDirectP2P ? 'direct_p2p' : 'relay',
+        peerName,
+        timestamp: Date.now(),
+      };
+      this.transfers.set(fileId, progress);
+    } else {
+      progress.status = 'transferring';
+      progress.mode = isDirectP2P ? 'direct_p2p' : 'relay';
+    }
 
-    this.transfers.set(fileId, progress);
     this.notifyProgress();
     playStartChime();
 
@@ -1245,9 +1326,11 @@ export class TransferEngine {
       }
     } catch (err: any) {
       console.error('File send error:', err);
-      progress.status = 'error';
-      progress.speedBytesPerSec = 0;
-      this.notifyProgress();
+      if (progress) {
+        progress.status = 'error';
+        progress.speedBytesPerSec = 0;
+        this.notifyProgress();
+      }
       this.onTransferError?.(file.name, err.message || 'Transfer failed');
     }
   }

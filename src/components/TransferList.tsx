@@ -13,6 +13,7 @@ import {
   ArrowDownLeft,
   Trash2,
   Zap,
+  Clock,
 } from 'lucide-react';
 import { TransferProgress } from '../types/transfer';
 import { formatBytes, formatSpeed, formatEta } from '../utils/format';
@@ -34,6 +35,7 @@ export const TransferList: React.FC<TransferListProps> = ({
   onCancelTransfer,
   onPreviewFile,
   onClearTransfers,
+  lang,
 }) => {
   const getFileIcon = (mimeType: string) => {
     if (mimeType.startsWith('image/')) return <ImageIcon className="w-5 h-5 text-[#185ADB]" />;
@@ -45,7 +47,14 @@ export const TransferList: React.FC<TransferListProps> = ({
     return <FileText className="w-5 h-5 text-slate-500" />;
   };
 
-  const activeTransfers = transfers.filter((t) => t.status === 'transferring' || t.status === 'queued');
+  const activeTransfers = transfers
+    .filter((t) => t.status === 'transferring' || t.status === 'queued')
+    .sort((a, b) => {
+      // Currently transferring item stays on top, followed by queued items chronologically
+      if (a.status === 'transferring' && b.status === 'queued') return -1;
+      if (a.status === 'queued' && b.status === 'transferring') return 1;
+      return a.timestamp - b.timestamp;
+    });
   const completedTransfers = transfers.filter((t) => t.status === 'completed' || t.status === 'cancelled' || t.status === 'error');
 
   return (
@@ -92,67 +101,125 @@ export const TransferList: React.FC<TransferListProps> = ({
         </div>
       ) : (
         <div className="space-y-2.5">
-          {/* Active Transfers */}
-          {activeTransfers.map((item) => (
-            <div
-              key={item.fileId}
-              className="p-3 rounded-xl bg-[#EEF4FD]/80 border border-[#D8E5FB] shadow-xs space-y-2"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0 flex-1 truncate">
-                  <div className="p-2 rounded-lg bg-white border border-[#D8E5FB] shrink-0 shadow-2xs">
-                    {getFileIcon(item.type)}
-                  </div>
-                  <div className="min-w-0 flex-1 truncate">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-800 truncate max-w-[130px] xs:max-w-[180px] sm:max-w-xs">
-                        {item.name}
-                      </span>
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold shrink-0 ${
-                        item.direction === 'outgoing'
-                          ? 'bg-[#FFF5EE] text-[#FF8A3D] border border-[#FFE6D5]'
-                          : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                      }`}>
-                        {item.direction === 'outgoing' ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownLeft className="w-2.5 h-2.5" />}
-                        {item.direction === 'outgoing' ? 'Sending' : 'Receiving'}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mt-0.5">
-                      <span>{formatBytes(item.transferredBytes)} / {formatBytes(item.size)}</span>
-                      <span>•</span>
-                      <span className="font-mono text-[#FF8A3D] font-semibold flex items-center gap-0.5">
-                        <Zap className="w-2.5 h-2.5" />
-                        {formatSpeed(item.speedBytesPerSec)}
-                      </span>
-                      <span>•</span>
-                      <span>ETA: {formatEta(item.etaSeconds)}</span>
-                    </div>
-                  </div>
-                </div>
+          {/* Active and Queued Transfers */}
+          {activeTransfers.map((item) => {
+            const isQueued = item.status === 'queued';
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs font-mono font-bold text-[#185ADB]">
-                    {item.progressPercent}%
-                  </span>
-                  <button
-                    onClick={() => onCancelTransfer(item.fileId)}
-                    className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-white transition-colors"
-                    title="Cancel"
-                  >
-                    <XCircle className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Progress Bar - Cobalt Blue to Tangerine Gradient */}
-              <div className="w-full h-1.5 rounded-full bg-slate-200/80 overflow-hidden relative">
+            if (isQueued) {
+              return (
                 <div
-                  className="h-full bg-gradient-to-r from-[#185ADB] via-[#8B5CF6] to-[#FF8A3D] rounded-full transition-all duration-150 ease-out"
-                  style={{ width: `${item.progressPercent}%` }}
-                />
+                  key={item.fileId}
+                  className="p-3 rounded-xl bg-white border border-[#E8E0D1] shadow-xs space-y-2 relative overflow-hidden"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1 truncate">
+                      <div className="p-2 rounded-lg bg-[#FAF8F5] border border-[#E8E0D1] shrink-0 shadow-2xs">
+                        {getFileIcon(item.type)}
+                      </div>
+                      <div className="min-w-0 flex-1 truncate">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-800 truncate max-w-[130px] xs:max-w-[180px] sm:max-w-xs">
+                            {item.name}
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#FFF5EE] text-[#FF8A3D] border border-[#FFE6D5] shrink-0">
+                            <Clock className="w-2.5 h-2.5 animate-spin" style={{ animationDuration: '4s' }} />
+                            <span>Queued</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#FAF8F5] text-slate-500 border border-[#E8E0D1] shrink-0">
+                            {item.direction === 'outgoing' ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownLeft className="w-2.5 h-2.5" />}
+                            {item.direction === 'outgoing' ? 'Send' : 'Receive'}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mt-0.5">
+                          <span>{formatBytes(item.size)}</span>
+                          <span>•</span>
+                          <span className="text-[#FF8A3D] font-medium">
+                            {lang === 'hi' ? 'कतार में (पहले ट्रांसफ़र का इंतज़ार...)' : 'Waiting in line...'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => onCancelTransfer(item.fileId)}
+                        className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-[#FAF8F5] transition-colors"
+                        title="Cancel"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Warm gentle pulsing indicator for queued state */}
+                  <div className="w-full h-1.5 rounded-full bg-[#EFECE6] overflow-hidden relative">
+                    <div className="h-full bg-gradient-to-r from-amber-300 via-[#FF8A3D] to-amber-300 rounded-full opacity-60 w-full animate-pulse" />
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={item.fileId}
+                className="p-3 rounded-xl bg-[#EEF4FD]/80 border border-[#D8E5FB] shadow-xs space-y-2"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1 truncate">
+                    <div className="p-2 rounded-lg bg-white border border-[#D8E5FB] shrink-0 shadow-2xs">
+                      {getFileIcon(item.type)}
+                    </div>
+                    <div className="min-w-0 flex-1 truncate">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-800 truncate max-w-[130px] xs:max-w-[180px] sm:max-w-xs">
+                          {item.name}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold shrink-0 ${
+                          item.direction === 'outgoing'
+                            ? 'bg-[#FFF5EE] text-[#FF8A3D] border border-[#FFE6D5]'
+                            : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                        }`}>
+                          {item.direction === 'outgoing' ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownLeft className="w-2.5 h-2.5" />}
+                          {item.direction === 'outgoing' ? 'Sending' : 'Receiving'}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mt-0.5">
+                        <span>{formatBytes(item.transferredBytes)} / {formatBytes(item.size)}</span>
+                        <span>•</span>
+                        <span className="font-mono text-[#FF8A3D] font-semibold flex items-center gap-0.5">
+                          <Zap className="w-2.5 h-2.5" />
+                          {formatSpeed(item.speedBytesPerSec)}
+                        </span>
+                        <span>•</span>
+                        <span>ETA: {formatEta(item.etaSeconds)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-mono font-bold text-[#185ADB]">
+                      {item.progressPercent}%
+                    </span>
+                    <button
+                      onClick={() => onCancelTransfer(item.fileId)}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-white transition-colors"
+                      title="Cancel"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Progress Bar - Cobalt Blue to Tangerine Gradient */}
+                <div className="w-full h-1.5 rounded-full bg-slate-200/80 overflow-hidden relative">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#185ADB] via-[#8B5CF6] to-[#FF8A3D] rounded-full transition-all duration-150 ease-out"
+                    style={{ width: `${item.progressPercent}%` }}
+                  />
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Completed / Past Transfers */}
           {completedTransfers.map((item) => (

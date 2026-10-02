@@ -273,11 +273,23 @@ export default function App() {
   const handleSendFiles = (files: FileList | File[]) => {
     if (!engineRef.current) return;
     try {
+      const isAlreadyBusy = engineRef.current.isBusy();
       engineRef.current.queueFiles(files);
-      showToast(
-        `Sending ${files.length} file(s)...`,
-        'info'
-      );
+      if (isAlreadyBusy) {
+        showToast(
+          lang === 'hi'
+            ? `${files.length} फ़ाइल(s) कतार (Queue) में जुड़ गई`
+            : `${files.length} file(s) added to queue`,
+          'info'
+        );
+      } else {
+        showToast(
+          lang === 'hi'
+            ? `${files.length} फ़ाइल(s) भेजी जा रही हैं...`
+            : `Sending ${files.length} file(s)...`,
+          'info'
+        );
+      }
     } catch (err: any) {
       showToast(`❌ ${err.message || 'Cannot send files'}`, 'error');
     }
