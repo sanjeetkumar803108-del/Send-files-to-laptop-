@@ -76,7 +76,6 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/20 text-white shrink-0">
             <Wifi className="w-5 h-5 stroke-[2.5]" />
           </div>
-          <div>
             <div className="flex items-center gap-2">
               <span className="font-extrabold tracking-tight text-white text-base sm:text-lg">
                 HotSpot<span className="text-indigo-400">Drop</span>
@@ -85,11 +84,7 @@ export const Header: React.FC<HeaderProps> = ({
                 P2P Local
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 hidden sm:block">
-              {lang === 'hi' ? 'Mobile se Laptop Direct File Transfer' : 'Mobile to Laptop Direct File Transfer'}
-            </p>
           </div>
-        </div>
 
         {/* Center / Status */}
         <div className="hidden md:flex items-center gap-3">

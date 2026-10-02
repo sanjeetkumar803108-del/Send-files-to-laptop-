@@ -206,9 +206,6 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   {connectionMode === 'direct_p2p' ? 'P2P Ready' : 'Relay Ready'}
                 </span>
-                <p className="text-[10px] text-slate-400">
-                  {lang === 'hi' ? 'Ready to transfer' : 'Ready to transfer'}
-                </p>
               </div>
             </div>
           ) : (
@@ -222,13 +219,8 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
                     <h4 className="text-xs sm:text-sm font-semibold text-slate-200">
                       {lang === 'hi'
                         ? (myDeviceType === 'mobile' ? 'Laptop ka intezaar hai...' : 'Mobile Phone ka intezaar hai...')
-                        : 'Waiting for device to connect...'}
+                        : 'Waiting for device...'}
                     </h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      {lang === 'hi'
-                        ? 'Dono devices ko same Hotspot se jodein aur QR scan karein ya PIN dalein.'
-                        : 'Connect both to same hotspot and scan QR or enter PIN.'}
-                    </p>
                   </div>
                 </div>
 

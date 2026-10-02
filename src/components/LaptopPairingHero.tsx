@@ -96,68 +96,20 @@ export const LaptopPairingHero: React.FC<LaptopPairingHeroProps> = ({ roomId, la
       <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-        {/* Left Column: Instructions & 6-Digit PIN */}
-        <div className="lg:col-span-7 space-y-5">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>
-              {lang === 'hi' ? 'Zero Install Web App • Ready for Pairing' : 'Zero Install Web App • Ready for Pairing'}
-            </span>
-          </div>
-
+        {/* Left Column: 6-Digit PIN & Fast Connection */}
+        <div className="lg:col-span-7 space-y-6">
           <div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
               {lang === 'hi' ? (
                 <>
-                  Mobile App खोलें और <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">QR Scan</span> करें
+                  QR Scan करें या <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">PIN डालें</span>
                 </>
               ) : (
                 <>
-                  Open Mobile App & <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">Scan QR Code</span>
+                  Scan QR or <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">Enter PIN</span>
                 </>
               )}
             </h2>
-            <p className="text-slate-400 text-xs sm:text-sm mt-1.5 leading-relaxed">
-              {lang === 'hi'
-                ? 'लैपटॉप में कुछ भी इंस्टॉल करने की ज़रूरत नहीं है! बस मोबाइल से यह QR कोड स्कैन करें या 6-digit PIN डालें।'
-                : 'No installation required on laptop! Simply scan this QR code or enter the 6-digit PIN from your mobile app.'}
-            </p>
-          </div>
-
-          {/* 3 Step Guide */}
-          <div className="space-y-2.5 text-xs sm:text-sm">
-            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <div className="w-6 h-6 rounded-lg bg-indigo-500/15 text-indigo-400 font-bold flex items-center justify-center shrink-0 text-xs">
-                1
-              </div>
-              <span className="text-slate-300 font-medium">
-                {lang === 'hi'
-                  ? 'Mobile में HotSpot Drop ऐप खोलें'
-                  : 'Open HotSpot Drop app on your phone'}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <div className="w-6 h-6 rounded-lg bg-cyan-500/15 text-cyan-400 font-bold flex items-center justify-center shrink-0 text-xs">
-                2
-              </div>
-              <span className="text-slate-300 font-medium">
-                {lang === 'hi'
-                  ? 'स्क्रीन पर दिख रहा QR Code स्कैन करें या 6-digit PIN डालें'
-                  : 'Scan this QR Code or enter the 6-digit PIN below'}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <div className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-400 font-bold flex items-center justify-center shrink-0 text-xs">
-                3
-              </div>
-              <span className="text-slate-300 font-medium">
-                {lang === 'hi'
-                  ? 'फाइलें सेलेक्ट करें और 80 MB/s तक की स्पीड पर भेजें!'
-                  : 'Select files and transfer at full Wi-Fi speed (up to 80 MB/s)'}
-              </span>
-            </div>
           </div>
 
           {/* 6-Digit PIN Showcase */}
@@ -225,10 +177,7 @@ export const LaptopPairingHero: React.FC<LaptopPairingHeroProps> = ({ roomId, la
           </div>
 
           {/* Quick URL for manual opening */}
-          <div className="mt-6 w-full max-w-xs text-center space-y-1.5">
-            <span className="text-[10px] text-slate-500 block">
-              {lang === 'hi' ? 'या Mobile Browser में यह URL खोलें:' : 'Or visit in Mobile Browser:'}
-            </span>
+          <div className="mt-5 w-full max-w-xs text-center">
             <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 font-mono text-[11px] text-cyan-300 flex items-center justify-between truncate">
               <span className="truncate">{effectiveBaseUrl}</span>
               <button

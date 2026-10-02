@@ -120,14 +120,9 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
               ? 'Files Drag & Drop karein ya Select karein'
               : 'Drag & Drop Files Here or Select Below'}
           </h3>
-          <p className="text-xs text-slate-400 mt-1 max-w-sm">
-            {lang === 'hi'
-              ? 'Photos, Videos, Zip, Folders ya heavy files bina kisi size limit ke direct hotspot speed pe send karein.'
-              : 'Direct peer-to-peer transfer with zero compression and no file size limits.'}
-          </p>
 
           {/* Action Buttons */}
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
             <button
               onClick={() => fileInputRef.current?.click()}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-md shadow-indigo-600/20 transition-all hover:scale-105 active:scale-95"
@@ -154,13 +149,12 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
           </div>
 
           {!isPeerConnected && (
-            <div className="mt-4 pt-3 border-t border-slate-800/80 w-full flex items-center justify-center gap-2 text-xs text-amber-400">
-              <span>{lang === 'hi' ? 'Pehle Laptop/Mobile pair karein:' : 'Pair your device first:'}</span>
+            <div className="mt-4 pt-3 border-t border-slate-800/80 w-full flex items-center justify-center gap-2 text-xs">
               <button
                 onClick={onOpenQR}
                 className="underline font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5"
               >
-                <span>{lang === 'hi' ? 'QR Code Kholein' : 'Open QR Code'}</span>
+                <span>{lang === 'hi' ? 'Pairing QR Code Kholein' : 'Open Pairing QR Code'}</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </button>
             </div>

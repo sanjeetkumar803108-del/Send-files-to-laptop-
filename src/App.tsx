@@ -322,51 +322,6 @@ export default function App() {
           <LaptopPairingHero roomId={roomId} lang={lang} />
         )}
 
-        {/* Banner: For Mobile or when connected */}
-        {(deviceType === 'mobile' || isPeerConnected) && (
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shrink-0">
-                <Laptop className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
-                  <span>{lang === 'hi' ? 'Laptop me koi app install nahi karni!' : 'No installation needed on Laptop!'}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
-                    Chrome / Edge Web App
-                  </span>
-                </h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  {lang === 'hi'
-                    ? 'Laptop ke Chrome browser me yeh website open karein aur phone se scan karein:'
-                    : 'Open Chrome or Edge on your laptop and visit this web URL:'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                onClick={copyAppUrl}
-                className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-mono text-cyan-300 flex items-center justify-center gap-1.5 transition-colors"
-                title="Copy URL"
-              >
-                {copiedAppUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span className="truncate max-w-[160px] sm:max-w-[200px]">{currentOrigin}</span>
-              </button>
-
-              {deviceType === 'mobile' && (
-                <button
-                  onClick={() => setIsScannerOpen(true)}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-600/20 shrink-0 transition-colors"
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                  <span>{lang === 'hi' ? 'Scan Karein' : 'Scan Laptop'}</span>
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Device Status & Pairing Card */}
         <DeviceCard
           myDeviceName={deviceName}
@@ -407,16 +362,6 @@ export default function App() {
           onClearTransfers={handleClearTransfers}
           lang={lang}
         />
-
-        {/* Trust & Privacy Card */}
-        <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/60 flex items-center justify-center gap-2 text-xs text-slate-500 text-center">
-          <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-          <span>
-            {lang === 'hi'
-              ? '100% Private: Files direct WebRTC P2P DataChannel se transfer hoti hain, kisi cloud par store nahi hoti.'
-              : 'End-to-End Local P2P: Files are directly streamed between devices. Nothing is stored on any cloud server.'}
-          </span>
-        </div>
       </main>
 
       {/* Modals */}

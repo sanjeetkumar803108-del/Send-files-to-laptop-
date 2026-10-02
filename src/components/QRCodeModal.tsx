@@ -110,79 +110,16 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
         </button>
 
         <div className="text-center">
-          <div className="inline-flex p-3 bg-indigo-500/10 text-indigo-400 rounded-xl mb-3 border border-indigo-500/20">
-            <QrCode className="w-6 h-6" />
+          <div className="inline-flex p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl mb-2 border border-indigo-500/20">
+            <QrCode className="w-5 h-5" />
           </div>
-          <h2 className="text-xl font-bold tracking-tight text-white">
-            {lang === 'hi' ? 'Laptop Se Connect Karein' : 'Connect Laptop & Mobile'}
+          <h2 className="text-lg font-bold tracking-tight text-white">
+            {lang === 'hi' ? 'Device Pairing' : 'Device Pairing'}
           </h2>
-          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-            {lang === 'hi'
-              ? 'Laptop me koi app install nahi karna hai! Bas browser me yeh link kholein.'
-              : 'No installation required on laptop! Just open this web page in Chrome / Edge.'}
-          </p>
-        </div>
-
-        {/* Step Guide Banner */}
-        <div className="mt-4 p-3 rounded-xl bg-indigo-950/50 border border-indigo-500/30 text-xs text-slate-300 space-y-2 text-left">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 font-bold text-indigo-300">
-              <Laptop className="w-4 h-4 text-indigo-400" />
-              <span>{lang === 'hi' ? 'Mobile me kaise connect karein?' : 'How to connect on Mobile?'}</span>
-            </div>
-            {networkIps.length > 1 && (
-              <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">
-                {networkIps.length} IPs Detected
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-slate-300 leading-relaxed">
-            {lang === 'hi'
-              ? '1. Mobile ke Chrome browser me yeh URL kholein ya neeche diya QR Code scan karein:'
-              : '1. Open this URL in your mobile Chrome browser or scan the QR Code below:'}
-          </p>
-          <div className="p-2 rounded bg-slate-950/80 border border-slate-800 font-mono text-[11px] text-cyan-300 flex items-center justify-between truncate">
-            <span className="truncate">{effectiveBaseUrl}</span>
-            <button
-              onClick={copyUrl}
-              className="text-xs px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 ml-2"
-            >
-              {copiedUrl ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-
-          {networkIps.length > 1 && (
-            <div className="pt-1">
-              <span className="text-[10px] text-slate-400 block mb-1">
-                {lang === 'hi' ? 'Agar connect na ho, to dusra IP chunein:' : 'Or switch to another IP:'}
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {networkIps.map((ip) => (
-                  <button
-                    key={ip}
-                    onClick={() => setSelectedIp(ip)}
-                    className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
-                      selectedIp === ip
-                        ? 'bg-indigo-600 border-indigo-400 text-white font-semibold'
-                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                    }`}
-                  >
-                    {ip.startsWith('192.168.137.') ? `🔥 Hotspot (${ip})` : ip}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <p className="text-[11px] text-slate-300 leading-relaxed">
-            {lang === 'hi'
-              ? '2. Mobile me neeche diya gaya 6-Digit PIN enter karein aur Join par click karein.'
-              : '2. Enter the 6-Digit PIN below on your mobile and tap Join.'}
-          </p>
         </div>
 
         {/* QR Code Container */}
-        <div className="mt-5 flex flex-col items-center justify-center">
+        <div className="mt-4 flex flex-col items-center justify-center">
           <div className="p-3 bg-white rounded-2xl shadow-lg border border-slate-200">
             {qrDataUrl ? (
               <img
@@ -201,7 +138,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
           <div className="mt-4 w-full bg-slate-950/70 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
             <div className="text-left">
               <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-500">
-                {lang === 'hi' ? '6-Digit Pairing PIN' : '6-Digit Pairing PIN'}
+                {lang === 'hi' ? '6-Digit PIN' : '6-Digit PIN'}
               </span>
               <p className="text-xl font-mono font-bold tracking-widest text-emerald-400">
                 {roomId.replace(/(\d{3})(\d{3})/, '$1 $2')}
@@ -212,7 +149,18 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
               className="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg flex items-center gap-1.5 transition-colors border border-slate-700"
             >
               {copiedPin ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              {copiedPin ? 'Copied' : (lang === 'hi' ? 'PIN Copy' : 'Copy PIN')}
+              {copiedPin ? 'Copied' : (lang === 'hi' ? 'Copy PIN' : 'Copy PIN')}
+            </button>
+          </div>
+
+          {/* Quick URL Box */}
+          <div className="mt-3 w-full p-2 rounded-xl bg-slate-950/80 border border-slate-800 font-mono text-[11px] text-cyan-300 flex items-center justify-between truncate">
+            <span className="truncate">{effectiveBaseUrl}</span>
+            <button
+              onClick={copyUrl}
+              className="text-xs px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 ml-2"
+            >
+              {copiedUrl ? 'Copied' : 'Copy'}
             </button>
           </div>
 
@@ -227,7 +175,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
                 className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/20 transition-colors"
               >
                 <Camera className="w-4 h-4" />
-                <span>{lang === 'hi' ? 'Camera Scanner Kholein' : 'Scan Laptop QR'}</span>
+                <span>{lang === 'hi' ? 'Camera Scan' : 'Scan QR'}</span>
               </button>
             )}
 
@@ -236,29 +184,8 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
               className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 transition-colors"
             >
               <Share2 className="w-4 h-4" />
-              <span>{lang === 'hi' ? 'WhatsApp pe Share' : 'Share via WhatsApp'}</span>
+              <span>{lang === 'hi' ? 'WhatsApp' : 'Share'}</span>
             </button>
-          </div>
-        </div>
-
-        {/* Hotspot & Laptop tip banner */}
-        <div className="mt-4 space-y-2">
-          <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-start gap-2.5 text-left text-xs text-indigo-300">
-            <Laptop className="w-4 h-4 shrink-0 mt-0.5 text-indigo-400" />
-            <span>
-              {lang === 'hi'
-                ? 'Laptop Tip: Laptop ke Chrome me apna Google Account login rakhein ya upar "Share" button se link activate karein.'
-                : 'Laptop Tip: Ensure same Google Account is logged into laptop Chrome, or tap "Share" above to activate the public link.'}
-            </span>
-          </div>
-
-          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5 text-left text-xs text-amber-300">
-            <Wifi className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-            <span>
-              {lang === 'hi'
-                ? 'Hotspot Tip: Laptop ko phone ke Wi-Fi Hotspot se connect rakhein. File transfer me internet MB kharch nahi hoga!'
-                : 'Hotspot Tip: Keep laptop connected to phone hotspot. Local P2P data transfer consumes 0 internet MBs!'}
-            </span>
           </div>
         </div>
       </div>

@@ -90,13 +90,8 @@ export const TransferList: React.FC<TransferListProps> = ({
       </div>
 
       {transfers.length === 0 ? (
-        <div className="py-8 text-center text-slate-500 text-xs">
+        <div className="py-6 text-center text-slate-500 text-xs">
           <p>{lang === 'hi' ? 'Abhi koi transfer nahi hua hai.' : 'No transfers yet.'}</p>
-          <p className="mt-1 text-[11px] text-slate-600">
-            {lang === 'hi'
-              ? 'Files select karke Send karein, yahan live progress dikhegi.'
-              : 'Files you send or receive will appear here with live speed and progress.'}
-          </p>
         </div>
       ) : (
         <div className="space-y-3">

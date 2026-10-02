@@ -47,13 +47,8 @@ export const QuickShareText: React.FC<QuickShareTextProps> = ({
           </div>
           <div className="flex-1">
             <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">
-              {lang === 'hi' ? 'Quick Text & Link Share' : 'Quick Clipboard & Notes Share'}
+              {lang === 'hi' ? 'Quick Text Share' : 'Quick Text Share'}
             </h4>
-            <p className="text-[11px] text-slate-400">
-              {lang === 'hi'
-                ? 'Mobile aur laptop ke beech text, link ya notes instantly bhejein'
-                : 'Send text, URLs or passwords instantly between phone and laptop'}
-            </p>
           </div>
           <div className="p-1 text-slate-400 group-hover:text-white">
             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
