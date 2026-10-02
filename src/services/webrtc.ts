@@ -59,6 +59,7 @@ export class TransferEngine {
   private isSettingRemoteAnswerPending = false;
   private p2pTimeoutTimer: NodeJS.Timeout | null = null;
   private autoDownloadEnabled = true;
+  private pendingCandidates: RTCIceCandidateInit[] = [];
 
   constructor(
     roomId: string,
@@ -283,6 +284,7 @@ export class TransferEngine {
   // --- WebRTC Peer-to-Peer Negotiation ---
   private initiatePeerConnection(targetPeerId: string, asInitiator: boolean) {
     this.isInitiator = asInitiator;
+    this.pendingCandidates = [];
 
     if (this.peerConnection) {
       try { this.peerConnection.close(); } catch {}
@@ -293,6 +295,8 @@ export class TransferEngine {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' },
       ],
       iceCandidatePoolSize: 4,
     };
@@ -300,14 +304,14 @@ export class TransferEngine {
     const pc = new RTCPeerConnection(config);
     this.peerConnection = pc;
 
-    // Timeout safety: if P2P isn't ready in 5 seconds, fallback to relay
+    // Timeout safety: if P2P isn't ready in 10 seconds, fallback to relay
     if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
     this.p2pTimeoutTimer = setTimeout(() => {
       if (this.connectionMode !== 'direct_p2p' && this.connectedPeers.length > 0) {
         console.log('WebRTC P2P timeout - seamlessly switching to Relay Mode');
         this.setMode('relay');
       }
-    }, 5000);
+    }, 10000);
 
     pc.onicecandidate = (event) => {
       if (event.candidate && this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -327,7 +331,7 @@ export class TransferEngine {
         this.setMode('direct_p2p');
       } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
         // Fallback to relay
-        if (this.connectedPeers.length > 0) {
+        if (this.connectedPeers.length > 0 && this.connectionMode !== 'direct_p2p') {
           this.setMode('relay');
         }
       }
@@ -340,7 +344,7 @@ export class TransferEngine {
       });
       this.setupDataChannel(channel, targetPeerId);
 
-      pc.onnegotiationneeded = async () => {
+      const makeOffer = async () => {
         try {
           this.isMakingOffer = true;
           const offer = await pc.createOffer();
@@ -359,6 +363,10 @@ export class TransferEngine {
           this.isMakingOffer = false;
         }
       };
+
+      pc.onnegotiationneeded = makeOffer;
+      // Also trigger initial offer creation to guarantee handshake
+      setTimeout(makeOffer, 80);
     } else {
       // Receiver sets up channel when received
       pc.ondatachannel = (event) => {
@@ -423,6 +431,18 @@ export class TransferEngine {
         await pc.setRemoteDescription(description);
         this.isSettingRemoteAnswerPending = false;
 
+        // Flush any buffered ICE candidates that arrived before remote description was ready
+        while (this.pendingCandidates.length > 0) {
+          const cand = this.pendingCandidates.shift();
+          if (cand) {
+            try {
+              await pc.addIceCandidate(cand);
+            } catch (err) {
+              console.warn('Error applying buffered candidate:', err);
+            }
+          }
+        }
+
         if (description.type === 'offer') {
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
@@ -435,11 +455,15 @@ export class TransferEngine {
           );
         }
       } else if (signal.candidate) {
-        try {
-          await pc.addIceCandidate(signal.candidate);
-        } catch (err) {
-          if (!this.isSettingRemoteAnswerPending) {
-            console.warn('Error adding ice candidate:', err);
+        if (!pc.remoteDescription) {
+          this.pendingCandidates.push(signal.candidate);
+        } else {
+          try {
+            await pc.addIceCandidate(signal.candidate);
+          } catch (err) {
+            if (!this.isSettingRemoteAnswerPending) {
+              console.warn('Error adding ice candidate:', err);
+            }
           }
         }
       }
@@ -699,19 +723,31 @@ export class TransferEngine {
     if (this.isSending || this.sendQueue.length === 0) return;
     this.isSending = true;
 
-    while (this.sendQueue.length > 0) {
-      const item = this.sendQueue.shift();
-      if (!item) break;
-      await this.sendFile(item.file, item.targetPeerId);
-    }
+    try {
+      while (this.sendQueue.length > 0) {
+        const item = this.sendQueue.shift();
+        if (!item) break;
 
-    this.isSending = false;
+        // Resolve active target peer (prefer connected peer)
+        const targetId = this.connectedPeers.some((p) => p.id === item.targetPeerId)
+          ? item.targetPeerId
+          : (this.connectedPeers[0]?.id || item.targetPeerId);
+
+        await this.sendFile(item.file, targetId);
+      }
+    } catch (err) {
+      console.error('Error processing send queue:', err);
+    } finally {
+      this.isSending = false;
+    }
   }
 
   private async sendFile(file: File, targetPeerId: string) {
     const fileId = 'file_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     const peerName = this.getPeerName(targetPeerId);
+    const isDirectP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
+    const chunkSize = isDirectP2P ? CHUNK_SIZE : 32 * 1024;
+    const totalChunks = Math.ceil(file.size / chunkSize);
 
     const progress: TransferProgress = {
       fileId,
@@ -724,7 +760,7 @@ export class TransferEngine {
       etaSeconds: 0,
       status: 'transferring',
       direction: 'outgoing',
-      mode: this.connectionMode,
+      mode: isDirectP2P ? 'direct_p2p' : 'relay',
       peerName,
       timestamp: Date.now(),
     };
@@ -733,156 +769,168 @@ export class TransferEngine {
     this.notifyProgress();
     playStartChime();
 
-    const isDirectP2P = this.dataChannel && this.dataChannel.readyState === 'open';
-
-    // 1. Send Header
-    const headerMsg = {
-      type: 'file-header',
-      fileId,
-      name: file.name,
-      size: file.size,
-      mimeType: file.type || 'application/octet-stream',
-      totalChunks,
-    };
-
-    if (isDirectP2P) {
-      this.dataChannel!.send(JSON.stringify(headerMsg));
-    } else {
-      this.ws?.send(
-        JSON.stringify({
-          type: 'relay-meta',
-          targetPeerId,
-          fileId,
-          name: file.name,
-          size: file.size,
-          mimeType: file.type || 'application/octet-stream',
-          totalChunks,
-        })
-      );
-    }
-
-    let offset = 0;
-    let chunkIndex = 0;
-    let bytesSent = 0;
-    let lastProgressTime = Date.now();
-    let lastBytesSent = 0;
-    const fileIdHash = this.hashString(fileId);
-
-    while (offset < file.size) {
-      if (this.cancelledTransfers.has(fileId)) {
-        break;
-      }
-
-      // Read chunk
-      const slice = file.slice(offset, offset + CHUNK_SIZE);
-      const chunkBuffer = await slice.arrayBuffer();
+    try {
+      // 1. Send Header
+      const headerMsg = {
+        type: 'file-header',
+        fileId,
+        name: file.name,
+        size: file.size,
+        mimeType: file.type || 'application/octet-stream',
+        totalChunks,
+      };
 
       if (isDirectP2P) {
-        // Backpressure flow control for WebRTC: pause if buffer is full with safety timeout
-        if (this.dataChannel!.bufferedAmount > BUFFERED_THRESHOLD) {
-          await new Promise<void>((resolve) => {
-            if (!this.dataChannel || this.dataChannel.readyState !== 'open') return resolve();
-            let timeoutId: any;
-            const onLow = () => {
-              clearTimeout(timeoutId);
-              this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
-              resolve();
-            };
-            timeoutId = setTimeout(() => {
-              this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
-              resolve();
-            }, 600);
-            this.dataChannel.addEventListener('bufferedamountlow', onLow);
-          });
-        }
-
-        // Pack 12-byte header + binary chunk payload
-        const packet = new Uint8Array(12 + chunkBuffer.byteLength);
-        const view = new DataView(packet.buffer);
-        view.setUint32(0, fileIdHash);
-        view.setUint32(4, chunkIndex);
-        view.setUint32(8, totalChunks);
-        packet.set(new Uint8Array(chunkBuffer), 12);
-
-        this.dataChannel!.send(packet.buffer);
+        this.dataChannel!.send(JSON.stringify(headerMsg));
       } else {
-        // Fast batch binary to base64 conversion
-        const bytes = new Uint8Array(chunkBuffer);
-        let binary = '';
-        const batchSize = 8192;
-        for (let i = 0; i < bytes.byteLength; i += batchSize) {
-          binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + batchSize)));
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+          throw new Error('Signaling server is not connected');
         }
-        const base64 = btoa(binary);
-
-        // Flow control for WebSocket relay
-        if (this.ws && this.ws.bufferedAmount > 1024 * 1024) {
-          await new Promise((r) => setTimeout(r, 20));
-        }
-
-        this.ws?.send(
+        this.ws.send(
           JSON.stringify({
-            type: 'relay-chunk',
+            type: 'relay-meta',
             targetPeerId,
             fileId,
-            chunkIndex,
+            name: file.name,
+            size: file.size,
+            mimeType: file.type || 'application/octet-stream',
             totalChunks,
-            data: base64,
           })
         );
+      }
 
-        if (chunkIndex % 8 === 0) {
-          await new Promise((r) => setTimeout(r, 4));
+      let offset = 0;
+      let chunkIndex = 0;
+      let bytesSent = 0;
+      let lastProgressTime = Date.now();
+      let lastBytesSent = 0;
+      const fileIdHash = this.hashString(fileId);
+
+      while (offset < file.size) {
+        if (this.cancelledTransfers.has(fileId)) {
+          break;
+        }
+
+        // Read chunk
+        const slice = file.slice(offset, offset + chunkSize);
+        const chunkBuffer = await slice.arrayBuffer();
+
+        if (isDirectP2P) {
+          // Backpressure flow control for WebRTC: pause if buffer is full with safety timeout
+          if (this.dataChannel!.bufferedAmount > BUFFERED_THRESHOLD) {
+            await new Promise<void>((resolve) => {
+              if (!this.dataChannel || this.dataChannel.readyState !== 'open') return resolve();
+              let timeoutId: any;
+              const onLow = () => {
+                clearTimeout(timeoutId);
+                this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
+                resolve();
+              };
+              timeoutId = setTimeout(() => {
+                this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
+                resolve();
+              }, 600);
+              this.dataChannel.addEventListener('bufferedamountlow', onLow);
+            });
+          }
+
+          // Pack 12-byte header + binary chunk payload
+          const packet = new Uint8Array(12 + chunkBuffer.byteLength);
+          const view = new DataView(packet.buffer);
+          view.setUint32(0, fileIdHash);
+          view.setUint32(4, chunkIndex);
+          view.setUint32(8, totalChunks);
+          packet.set(new Uint8Array(chunkBuffer), 12);
+
+          this.dataChannel!.send(packet.buffer);
+        } else {
+          // Fast batch binary to base64 conversion
+          const bytes = new Uint8Array(chunkBuffer);
+          let binary = '';
+          const batchSize = 8192;
+          for (let i = 0; i < bytes.byteLength; i += batchSize) {
+            binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + batchSize)));
+          }
+          const base64 = btoa(binary);
+
+          // Flow control for WebSocket relay
+          while (this.ws && this.ws.bufferedAmount > 256 * 1024) {
+            await new Promise((r) => setTimeout(r, 20));
+          }
+
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(
+              JSON.stringify({
+                type: 'relay-chunk',
+                targetPeerId,
+                fileId,
+                chunkIndex,
+                totalChunks,
+                data: base64,
+              })
+            );
+          } else {
+            throw new Error('Connection closed during relay transfer');
+          }
+
+          if (chunkIndex % 4 === 0) {
+            await new Promise((r) => setTimeout(r, 8));
+          }
+        }
+
+        offset += chunkBuffer.byteLength;
+        bytesSent += chunkBuffer.byteLength;
+        chunkIndex++;
+
+        // Update progress metrics
+        const now = Date.now();
+        if (now - lastProgressTime > 150 || offset >= file.size) {
+          const timeDiff = (now - lastProgressTime) / 1000;
+          let speed = 0;
+          if (timeDiff > 0.05) {
+            speed = (bytesSent - lastBytesSent) / timeDiff;
+            lastProgressTime = now;
+            lastBytesSent = bytesSent;
+          }
+
+          const percent = Math.min(100, Math.round((bytesSent / file.size) * 100));
+          const remainingBytes = Math.max(0, file.size - bytesSent);
+          const eta = speed > 0 ? remainingBytes / speed : 0;
+
+          progress.transferredBytes = bytesSent;
+          progress.progressPercent = percent;
+          progress.speedBytesPerSec = Math.round(speed);
+          progress.etaSeconds = eta;
+          this.notifyProgress();
         }
       }
 
-      offset += chunkBuffer.byteLength;
-      bytesSent += chunkBuffer.byteLength;
-      chunkIndex++;
-
-      // Update progress metrics
-      const now = Date.now();
-      if (now - lastProgressTime > 150 || offset >= file.size) {
-        const timeDiff = (now - lastProgressTime) / 1000;
-        let speed = 0;
-        if (timeDiff > 0.05) {
-          speed = (bytesSent - lastBytesSent) / timeDiff;
-          lastProgressTime = now;
-          lastBytesSent = bytesSent;
+      if (!this.cancelledTransfers.has(fileId)) {
+        // Send completion signal
+        if (isDirectP2P) {
+          this.dataChannel!.send(JSON.stringify({ type: 'file-complete', fileId }));
+        } else {
+          this.ws?.send(
+            JSON.stringify({
+              type: 'relay-complete',
+              targetPeerId,
+              fileId,
+            })
+          );
         }
 
-        const percent = Math.min(100, Math.round((bytesSent / file.size) * 100));
-        const remainingBytes = Math.max(0, file.size - bytesSent);
-        const eta = speed > 0 ? remainingBytes / speed : 0;
-
-        progress.transferredBytes = bytesSent;
-        progress.progressPercent = percent;
-        progress.speedBytesPerSec = Math.round(speed);
-        progress.etaSeconds = eta;
+        progress.status = 'completed';
+        progress.progressPercent = 100;
+        progress.speedBytesPerSec = 0;
+        progress.etaSeconds = 0;
         this.notifyProgress();
+        playSuccessChime();
       }
-    }
-
-    if (!this.cancelledTransfers.has(fileId)) {
-      // Send completion signal
-      if (isDirectP2P) {
-        this.dataChannel!.send(JSON.stringify({ type: 'file-complete', fileId }));
-      } else {
-        this.ws?.send(
-          JSON.stringify({
-            type: 'relay-complete',
-            targetPeerId,
-            fileId,
-          })
-        );
-      }
-
-      progress.status = 'completed';
-      progress.progressPercent = 100;
+    } catch (err: any) {
+      console.error('File send error:', err);
+      progress.status = 'error';
       progress.speedBytesPerSec = 0;
-      progress.etaSeconds = 0;
       this.notifyProgress();
-      playSuccessChime();
     }
   }
 

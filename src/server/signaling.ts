@@ -128,12 +128,21 @@ export function setupSignalingServer(httpServer: any) {
           case 'signal': {
             // Forward WebRTC signaling (offer/answer/ice candidate)
             const { targetPeerId, signal } = msg;
-            if (!currentRoomId || !currentPeerId || !targetPeerId) return;
+            if (!currentRoomId || !currentPeerId) return;
 
             const room = rooms.get(currentRoomId);
             if (!room) return;
 
-            const targetPeer = room.peers.get(targetPeerId);
+            let targetPeer = targetPeerId ? room.peers.get(targetPeerId) : null;
+            if (!targetPeer || targetPeer.ws.readyState !== WebSocket.OPEN) {
+              for (const [pId, p] of room.peers.entries()) {
+                if (pId !== currentPeerId && p.ws.readyState === WebSocket.OPEN) {
+                  targetPeer = p;
+                  break;
+                }
+              }
+            }
+
             if (targetPeer && targetPeer.ws.readyState === WebSocket.OPEN) {
               targetPeer.ws.send(JSON.stringify({
                 type: 'signal',
@@ -151,12 +160,21 @@ export function setupSignalingServer(httpServer: any) {
           case 'relay-text': {
             // Forward fallback relay packets directly between peers
             const { targetPeerId } = msg;
-            if (!currentRoomId || !currentPeerId || !targetPeerId) return;
+            if (!currentRoomId || !currentPeerId) return;
 
             const room = rooms.get(currentRoomId);
             if (!room) return;
 
-            const targetPeer = room.peers.get(targetPeerId);
+            let targetPeer = targetPeerId ? room.peers.get(targetPeerId) : null;
+            if (!targetPeer || targetPeer.ws.readyState !== WebSocket.OPEN) {
+              for (const [pId, p] of room.peers.entries()) {
+                if (pId !== currentPeerId && p.ws.readyState === WebSocket.OPEN) {
+                  targetPeer = p;
+                  break;
+                }
+              }
+            }
+
             if (targetPeer && targetPeer.ws.readyState === WebSocket.OPEN) {
               msg.fromPeerId = currentPeerId;
               targetPeer.ws.send(JSON.stringify(msg));
