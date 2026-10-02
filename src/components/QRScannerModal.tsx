@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { X, Camera, AlertCircle, RefreshCw } from 'lucide-react';
+import { X, Camera, AlertCircle, RefreshCw, Zap } from 'lucide-react';
 
 interface QRScannerModalProps {
   isOpen: boolean;
@@ -34,49 +34,97 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       return;
     }
 
-    const timer = setTimeout(() => {
+    let isMounted = true;
+
+    const startScanner = async () => {
       try {
         const html5QrCode = new Html5Qrcode(scannerContainerId);
         scannerRef.current = html5QrCode;
 
-        html5QrCode
-          .start(
+        const qrConfig = {
+          fps: 25, // Ultra-fast scan rate (40ms per frame)
+          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const edgeSize = Math.max(Math.floor(minEdge * 0.72), 180);
+            return { width: edgeSize, height: edgeSize };
+          },
+          aspectRatio: 1.0,
+        };
+
+        const handleSuccess = (decodedText: string) => {
+          if (!isMounted) return;
+          // Haptic vibration feedback on successful scan
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            try {
+              navigator.vibrate([40, 50, 40]);
+            } catch {}
+          }
+          try {
+            html5QrCode.stop().catch(() => {});
+          } catch {}
+          onScanSuccess(decodedText);
+          onClose();
+        };
+
+        // Attempt 1: Start with back camera (environment)
+        try {
+          await html5QrCode.start(
             { facingMode: 'environment' },
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 250 },
-            },
-            (decodedText) => {
-              // Successfully decoded QR code
-              try {
-                html5QrCode.stop().catch(() => {});
-              } catch {}
-              onScanSuccess(decodedText);
-              onClose();
-            },
-            () => {
-              // ignore frame misses
-            }
-          )
-          .then(() => {
+            qrConfig,
+            handleSuccess,
+            () => {} // Frame miss
+          );
+          if (isMounted) {
             setIsScanning(true);
             setError(null);
-          })
-          .catch((err) => {
-            console.error('Camera QR start error:', err);
-            setError(
-              lang === 'hi'
-                ? 'Camera access nahi mila. Browser permission allow karein ya PIN code enter karein.'
-                : 'Could not access camera. Please allow camera permissions or enter the 6-digit PIN.'
-            );
-            setIsScanning(false);
-          });
-      } catch (e: any) {
-        setError(e.message || 'Scanner initialization error');
+          }
+          return;
+        } catch (envErr) {
+          console.warn('Direct environment facingMode failed, falling back to camera list:', envErr);
+        }
+
+        // Attempt 2: Enumerate cameras and pick back camera or first camera
+        const devices = await Html5Qrcode.getCameras();
+        if (devices && devices.length > 0) {
+          const backCam = devices.find((d) =>
+            d.label.toLowerCase().includes('back') ||
+            d.label.toLowerCase().includes('rear') ||
+            d.label.toLowerCase().includes('environment')
+          ) || devices[0];
+
+          await html5QrCode.start(
+            backCam.id,
+            qrConfig,
+            handleSuccess,
+            () => {}
+          );
+          if (isMounted) {
+            setIsScanning(true);
+            setError(null);
+          }
+          return;
+        }
+
+        throw new Error('No camera found on this device');
+      } catch (err: any) {
+        console.error('Camera QR start error:', err);
+        if (isMounted) {
+          setError(
+            lang === 'hi'
+              ? 'Camera access nahi mila. Browser permission allow karein ya PIN dalein.'
+              : 'Could not access camera. Please allow camera permissions or enter PIN.'
+          );
+          setIsScanning(false);
+        }
       }
-    }, 200);
+    };
+
+    const timer = setTimeout(() => {
+      startScanner();
+    }, 150);
 
     return () => {
+      isMounted = false;
       clearTimeout(timer);
       if (scannerRef.current) {
         scannerRef.current
@@ -119,18 +167,32 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         </p>
 
         {/* Video stream container */}
-        <div className="relative w-full aspect-square bg-slate-900 rounded-2xl overflow-hidden border border-[#E8E0D1] flex items-center justify-center shadow-inner">
+        <div className="relative w-full aspect-square bg-slate-950 rounded-2xl overflow-hidden border border-[#E8E0D1] flex items-center justify-center shadow-inner">
           <div id={scannerContainerId} className="w-full h-full" />
-          
+
+          {/* Animated Scanner Laser & Corner Overlay */}
+          {isScanning && !error && (
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div className="relative w-48 h-48 border-2 border-[#185ADB]/50 rounded-2xl overflow-hidden shadow-[0_0_15px_rgba(24,90,219,0.2)]">
+                {/* Laser scan line in Tangerine */}
+                <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-[#FF8A3D] to-transparent shadow-[0_0_8px_#FF8A3D] animate-bounce" />
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-900/80 backdrop-blur-xs text-[10px] text-white flex items-center gap-1">
+                  <Zap className="w-2.5 h-2.5 text-[#FF8A3D]" />
+                  <span>Scanning</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {!isScanning && !error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-2 bg-slate-900">
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-2 bg-slate-950">
               <RefreshCw className="w-6 h-6 animate-spin text-[#185ADB]" />
               <span className="text-xs">{lang === 'hi' ? 'Camera shuru ho raha hai...' : 'Starting camera...'}</span>
             </div>
           )}
 
           {error && (
-            <div className="absolute inset-0 p-4 flex flex-col items-center justify-center text-rose-300 gap-2 bg-slate-900/95 text-xs">
+            <div className="absolute inset-0 p-4 flex flex-col items-center justify-center text-rose-300 gap-2 bg-slate-950/95 text-xs">
               <AlertCircle className="w-6 h-6 text-rose-400 shrink-0" />
               <p>{error}</p>
             </div>

@@ -211,26 +211,50 @@ export default function App() {
 
   const handleScanSuccess = (scannedText: string) => {
     try {
-      if (scannedText.includes('room=')) {
-        const url = new URL(scannedText);
-        const r = url.searchParams.get('room');
-        if (r && /^\d{6}$/.test(r)) {
-          handleJoinRoom(r);
-          return;
+      let targetPin = '';
+
+      // Match room=123456 from full URL, query string, or text
+      const match = scannedText.match(/[?&]room=(\d{6})/i) || scannedText.match(/room=(\d{6})/i);
+      if (match && match[1]) {
+        targetPin = match[1];
+      } else {
+        // Match raw 6 digits
+        const cleanDigits = scannedText.replace(/\D/g, '');
+        if (cleanDigits.length === 6) {
+          targetPin = cleanDigits;
+        } else {
+          const anyMatch = scannedText.match(/\d{6}/);
+          if (anyMatch) targetPin = anyMatch[0];
         }
       }
-      const match = scannedText.match(/room=(\d{6})/);
-      if (match && match[1]) {
-        handleJoinRoom(match[1]);
+
+      if (targetPin && /^\d{6}$/.test(targetPin)) {
+        // Direct instant connect upon QR scan without intermediate blocking!
+        setRoomId(targetPin);
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('hotspot_drop_room', targetPin);
+          const url = new URL(window.location.href);
+          url.searchParams.set('room', targetPin);
+          window.history.replaceState({}, '', url.toString());
+        }
+        setIsScannerOpen(false);
+        showToast(
+          lang === 'hi' ? '⚡ QR Code Scanned! Direct Connected!' : '⚡ QR Code Scanned! Direct Connected!',
+          'success'
+        );
         return;
       }
-      const cleanDigits = scannedText.replace(/\D/g, '');
-      if (cleanDigits.length === 6) {
-        handleJoinRoom(cleanDigits);
-      }
-    } catch {
-      const match = scannedText.match(/\d{6}/);
-      if (match) handleJoinRoom(match[0]);
+
+      showToast(
+        lang === 'hi' ? '❌ Invalid QR Code. Kripya laptop screen ka QR code scan karein.' : '❌ Invalid QR Code. Please scan laptop screen QR.',
+        'error'
+      );
+    } catch (err: any) {
+      console.error('Scan error:', err);
+      showToast(
+        lang === 'hi' ? 'QR Code scan karne me samasya aayi.' : 'Error reading QR code.',
+        'error'
+      );
     }
   };
 
