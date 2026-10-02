@@ -1,0 +1,6 @@
+{
+  "name": "HotSpot Drop - Mobile to Laptop File Transfer",
+  "description": "Direct, ultra-fast peer-to-peer file transfer between mobile and laptop over hotspot or local Wi-Fi with instant QR code pairing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
