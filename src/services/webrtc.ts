@@ -62,6 +62,9 @@ export class TransferEngine {
   private p2pTimeoutTimer: NodeJS.Timeout | null = null;
   private autoDownloadEnabled = true;
   private pendingCandidates: RTCIceCandidateInit[] = [];
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private lastPeerHeartbeat = Date.now();
+  private reconnectTimer: NodeJS.Timeout | null = null;
 
   constructor(
     roomId: string,
@@ -74,6 +77,22 @@ export class TransferEngine {
     this.deviceName = deviceName;
     this.deviceType = deviceType;
   }
+
+  private handleVisibilityChange = () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      console.log('App returned to foreground, verifying connection health...');
+      this.checkAndRecoverConnection();
+    }
+  };
+
+  private handleWindowFocus = () => {
+    this.checkAndRecoverConnection();
+  };
+
+  private handleOnline = () => {
+    console.log('Network online detected, verifying connection...');
+    this.checkAndRecoverConnection();
+  };
 
   public setCallbacks(
     onConnectionChange: ConnectionCallback,
@@ -118,10 +137,23 @@ export class TransferEngine {
   }
 
   public start() {
+    if (typeof window !== 'undefined') {
+      document.addEventListener('visibilitychange', this.handleVisibilityChange);
+      window.addEventListener('focus', this.handleWindowFocus);
+      window.addEventListener('online', this.handleOnline);
+    }
     this.connectSignaling();
+    this.startHeartbeat();
   }
 
   public stop() {
+    if (typeof window !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+      window.removeEventListener('focus', this.handleWindowFocus);
+      window.removeEventListener('online', this.handleOnline);
+    }
+    this.stopHeartbeat();
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
     if (this.dataChannel) {
       try { this.dataChannel.close(); } catch {}
@@ -135,7 +167,98 @@ export class TransferEngine {
       try { this.ws.close(); } catch {}
       this.ws = null;
     }
+    this.connectedPeers = [];
+    this.onPeersChange?.([]);
     this.setMode('disconnected');
+  }
+
+  public checkAndRecoverConnection() {
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      return;
+    }
+
+    // 1. Re-open WebSocket if disconnected
+    if (!this.ws || this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) {
+      console.log('[Recovery] WebSocket closed, reconnecting now...');
+      this.connectSignaling();
+      return;
+    }
+
+    // 2. Re-register presence in room if socket is open
+    if (this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(
+        JSON.stringify({
+          type: 'join',
+          roomId: this.roomId,
+          peerId: this.peerId,
+          name: this.deviceName,
+          deviceType: this.deviceType,
+        })
+      );
+    }
+
+    // 3. Check WebRTC DataChannel liveness
+    const isChannelOpen = this.dataChannel && this.dataChannel.readyState === 'open';
+    if (!isChannelOpen && this.connectedPeers.length > 0) {
+      console.log('[Recovery] DataChannel not open, re-initiating WebRTC handshake...');
+      this.initiatePeerConnection(this.connectedPeers[0].id, this.isInitiator);
+    }
+  }
+
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    this.lastPeerHeartbeat = Date.now();
+
+    this.heartbeatInterval = setInterval(() => {
+      if (this.connectedPeers.length === 0) return;
+      const now = Date.now();
+
+      // Send ping over DataChannel if direct P2P
+      if (this.dataChannel && this.dataChannel.readyState === 'open') {
+        try {
+          this.dataChannel.send(JSON.stringify({ type: 'hb-ping' }));
+        } catch {}
+      } else if (this.ws && this.ws.readyState === WebSocket.OPEN && this.connectedPeers.length > 0) {
+        try {
+          this.ws.send(
+            JSON.stringify({
+              type: 'relay-text',
+              targetPeerId: this.connectedPeers[0].id,
+              text: '__HB__',
+              isHeartbeat: true,
+            })
+          );
+        } catch {}
+      }
+
+      // If peer stopped responding for more than 7 seconds, clear stale connection immediately!
+      if (now - this.lastPeerHeartbeat > 7000) {
+        console.warn('[Heartbeat] Peer heartbeat timed out');
+        this.connectedPeers = [];
+        this.onPeersChange?.([]);
+        this.setMode('connecting');
+
+        // Refresh room registry on signaling server
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(
+            JSON.stringify({
+              type: 'join',
+              roomId: this.roomId,
+              peerId: this.peerId,
+              name: this.deviceName,
+              deviceType: this.deviceType,
+            })
+          );
+        }
+      }
+    }, 3000);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
   }
 
   private setMode(mode: ConnectionMode) {
@@ -190,15 +313,19 @@ export class TransferEngine {
       };
 
       this.ws.onclose = () => {
+        console.warn('Signaling socket closed');
         if (this.connectionMode !== 'direct_p2p') {
+          this.connectedPeers = [];
+          this.onPeersChange?.([]);
           this.setMode('disconnected');
         }
-        // Attempt reconnection after 3 seconds
-        setTimeout(() => {
+        // Attempt fast reconnection
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(() => {
           if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
             this.connectSignaling();
           }
-        }, 3000);
+        }, 2000);
       };
 
       this.ws.onerror = (err) => {
@@ -206,6 +333,8 @@ export class TransferEngine {
       };
     } catch (e) {
       console.error('Failed to connect to signaling socket:', e);
+      this.connectedPeers = [];
+      this.onPeersChange?.([]);
       this.setMode('disconnected');
     }
   }
@@ -218,6 +347,7 @@ export class TransferEngine {
         this.onPeersChange?.(peers);
 
         if (peers.length > 0) {
+          this.lastPeerHeartbeat = Date.now();
           // A peer is already here; we initiate WebRTC connection
           this.setMode('connecting');
           this.initiatePeerConnection(peers[0].id, true);
@@ -229,6 +359,7 @@ export class TransferEngine {
 
       case 'peer-joined': {
         const newPeer: PeerDevice = msg.peer;
+        this.lastPeerHeartbeat = Date.now();
         // Check if not already added
         if (!this.connectedPeers.some((p) => p.id === newPeer.id)) {
           this.connectedPeers = [...this.connectedPeers, newPeer];
@@ -240,9 +371,18 @@ export class TransferEngine {
       }
 
       case 'peer-left': {
+        console.log('Peer left event received for:', msg.peerId);
         this.connectedPeers = this.connectedPeers.filter((p) => p.id !== msg.peerId);
         this.onPeersChange?.(this.connectedPeers);
         if (this.connectedPeers.length === 0) {
+          if (this.dataChannel) {
+            try { this.dataChannel.close(); } catch {}
+            this.dataChannel = null;
+          }
+          if (this.peerConnection) {
+            try { this.peerConnection.close(); } catch {}
+            this.peerConnection = null;
+          }
           this.setMode('connecting');
         }
         break;
@@ -270,6 +410,21 @@ export class TransferEngine {
       }
 
       case 'relay-text': {
+        if (msg.isHeartbeat) {
+          this.lastPeerHeartbeat = Date.now();
+          if (msg.text === '__HB__' && this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(
+              JSON.stringify({
+                type: 'relay-text',
+                targetPeerId: msg.fromPeerId,
+                text: '__HB_ACK__',
+                isHeartbeat: true,
+              })
+            );
+          }
+          break;
+        }
+
         const snippet: SharedSnippet = {
           id: 'snip_' + Date.now(),
           senderName: this.getPeerName(msg.fromPeerId),
@@ -503,6 +658,15 @@ export class TransferEngine {
       case 'file-cancel':
         this.cancelIncomingTransfer(msg.fileId);
         break;
+      case 'hb-ping':
+        try {
+          this.dataChannel?.send(JSON.stringify({ type: 'hb-pong' }));
+          this.lastPeerHeartbeat = Date.now();
+        } catch {}
+        break;
+      case 'hb-pong':
+        this.lastPeerHeartbeat = Date.now();
+        break;
       case 'text-snippet': {
         const snippet: SharedSnippet = {
           id: 'snip_' + Date.now(),
@@ -724,8 +888,16 @@ export class TransferEngine {
   // --- Sending Files ---
   public queueFiles(files: FileList | File[], targetPeerId?: string) {
     const peerId = targetPeerId || (this.connectedPeers[0] ? this.connectedPeers[0].id : null);
-    if (!peerId) {
-      throw new Error('No device connected yet. Please pair your mobile or laptop first!');
+    if (!peerId || this.connectedPeers.length === 0) {
+      this.checkAndRecoverConnection();
+      throw new Error('Device connect nahi hai! Kripya pehle connect hone ka intezaar karein.');
+    }
+
+    const isDirectP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
+    const isWsOpen = !!(this.ws && this.ws.readyState === WebSocket.OPEN);
+    if (!isDirectP2P && !isWsOpen) {
+      this.checkAndRecoverConnection();
+      throw new Error('Connection re-sync ho raha hai, 2 second baad dobara send karein.');
     }
 
     for (let i = 0; i < files.length; i++) {

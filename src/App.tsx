@@ -22,6 +22,10 @@ export default function App() {
       if (urlRoom && /^\d{6}$/.test(urlRoom)) {
         return urlRoom;
       }
+      const saved = sessionStorage.getItem('hotspot_drop_room');
+      if (saved && /^\d{6}$/.test(saved)) {
+        return saved;
+      }
     }
     return generateRoomId();
   });
@@ -124,6 +128,20 @@ export default function App() {
     }
   }, [autoDownload]);
 
+  // Handle browser back/forward and URL changes cleanly
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlRoom = params.get('room');
+      if (urlRoom && /^\d{6}$/.test(urlRoom) && urlRoom !== roomId) {
+        setRoomId(urlRoom);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [roomId]);
+
   // Actions
   const handleUpdateDeviceName = (name: string) => {
     setDeviceName(name);
@@ -174,9 +192,10 @@ export default function App() {
 
     setRoomId(cleanPin);
     if (typeof window !== 'undefined') {
+      sessionStorage.setItem('hotspot_drop_room', cleanPin);
       const url = new URL(window.location.href);
       url.searchParams.set('room', cleanPin);
-      window.history.pushState({}, '', url.toString());
+      window.history.replaceState({}, '', url.toString());
     }
     showToast(
       lang === 'hi' ? 'Sahi PIN! Laptop se connect ho rahe hain...' : 'Valid PIN! Connecting to laptop...',
