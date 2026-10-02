@@ -26,6 +26,7 @@ interface ActiveReceivingFile {
   lastBytesCount: number;
   speed: number;
   senderName: string;
+  receivedCompleteSignal?: boolean;
 }
 
 export class TransferEngine {
@@ -45,6 +46,7 @@ export class TransferEngine {
 
   private activeReceiving: Map<string, ActiveReceivingFile> = new Map();
   private activeReceivingByHash: Map<number, ActiveReceivingFile> = new Map();
+  private earlyChunksBuffer: Map<number, Array<{ chunkIndex: number; payload: Uint8Array }>> = new Map();
   private sendQueue: { file: File; targetPeerId: string }[] = [];
   private isSending = false;
   private cancelledTransfers = new Set<string>();
@@ -168,6 +170,7 @@ export class TransferEngine {
       this.ws = null;
     }
     this.connectedPeers = [];
+    this.earlyChunksBuffer.clear();
     this.onPeersChange?.([]);
     this.setMode('disconnected');
   }
@@ -297,10 +300,19 @@ export class TransferEngine {
         );
       };
 
-      this.ws.onmessage = (event) => {
-        // Raw ultra-fast binary frame received
+      this.ws.onmessage = async (event) => {
+        // Raw ultra-fast binary frame received (ArrayBuffer or Blob)
         if (event.data instanceof ArrayBuffer) {
           this.handleIncomingBinaryChunk(event.data);
+          return;
+        }
+        if (event.data instanceof Blob) {
+          try {
+            const buf = await event.data.arrayBuffer();
+            this.handleIncomingBinaryChunk(buf);
+          } catch (e) {
+            console.error('Error reading WebSocket Blob:', e);
+          }
           return;
         }
 
@@ -410,6 +422,11 @@ export class TransferEngine {
       }
 
       case 'relay-text': {
+        if (msg.isHeaderAck) {
+          this.lastPeerHeartbeat = Date.now();
+          break;
+        }
+
         if (msg.isHeartbeat) {
           this.lastPeerHeartbeat = Date.now();
           if (msg.text === '__HB__' && this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -566,7 +583,7 @@ export class TransferEngine {
       }
     };
 
-    channel.onmessage = (event) => {
+    channel.onmessage = async (event) => {
       if (typeof event.data === 'string') {
         try {
           const msg = JSON.parse(event.data);
@@ -576,6 +593,13 @@ export class TransferEngine {
         }
       } else if (event.data instanceof ArrayBuffer) {
         this.handleIncomingBinaryChunk(event.data);
+      } else if (event.data instanceof Blob) {
+        try {
+          const buf = await event.data.arrayBuffer();
+          this.handleIncomingBinaryChunk(buf);
+        } catch (e) {
+          console.error('Error reading DataChannel Blob:', e);
+        }
       }
     };
   }
@@ -658,6 +682,9 @@ export class TransferEngine {
       case 'file-cancel':
         this.cancelIncomingTransfer(msg.fileId);
         break;
+      case 'header-ack':
+        this.lastPeerHeartbeat = Date.now();
+        break;
       case 'hb-ping':
         try {
           this.dataChannel?.send(JSON.stringify({ type: 'hb-pong' }));
@@ -692,6 +719,11 @@ export class TransferEngine {
     totalChunks: number,
     senderName: string
   ) {
+    // If already registered via dual signaling, do not recreate
+    if (this.activeReceiving.has(fileId)) {
+      return;
+    }
+
     playStartChime();
 
     const activeFile: ActiveReceivingFile = {
@@ -709,6 +741,7 @@ export class TransferEngine {
       lastBytesCount: 0,
       speed: 0,
       senderName,
+      receivedCompleteSignal: false,
     };
 
     this.activeReceiving.set(fileId, activeFile);
@@ -732,6 +765,32 @@ export class TransferEngine {
 
     this.transfers.set(fileId, progress);
     this.notifyProgress();
+
+    // Send ACK back so sender knows receiver is ready
+    if (this.dataChannel && this.dataChannel.readyState === 'open') {
+      try {
+        this.dataChannel.send(JSON.stringify({ type: 'header-ack', fileId }));
+      } catch {}
+    }
+    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.connectedPeers.length > 0) {
+      try {
+        this.ws.send(JSON.stringify({
+          type: 'relay-text',
+          targetPeerId: this.connectedPeers[0].id,
+          text: `__ACK__:${fileId}`,
+          isHeaderAck: true,
+        }));
+      } catch {}
+    }
+
+    // Apply any chunks that arrived early before the header was processed
+    const earlyChunks = this.earlyChunksBuffer.get(activeFile.fileIdHash);
+    if (earlyChunks && earlyChunks.length > 0) {
+      for (const item of earlyChunks) {
+        this.applyChunk(activeFile, item.chunkIndex, item.payload);
+      }
+      this.earlyChunksBuffer.delete(activeFile.fileIdHash);
+    }
   }
 
   // Direct Binary Chunk Receiver (WebRTC P2P)
@@ -745,7 +804,14 @@ export class TransferEngine {
 
     // Instant O(1) lookup by pre-computed fileIdHash
     const targetFile = this.activeReceivingByHash.get(fileIdHash);
-    if (!targetFile) return;
+    if (!targetFile) {
+      // Buffer early arriving chunk so no packet is lost due to event loop order
+      if (!this.earlyChunksBuffer.has(fileIdHash)) {
+        this.earlyChunksBuffer.set(fileIdHash, []);
+      }
+      this.earlyChunksBuffer.get(fileIdHash)!.push({ chunkIndex, payload });
+      return;
+    }
     this.applyChunk(targetFile, chunkIndex, payload);
   }
 
@@ -797,7 +863,10 @@ export class TransferEngine {
       }
     }
 
-    if (targetFile.receivedChunks === targetFile.totalChunks) {
+    if (
+      targetFile.receivedChunks === targetFile.totalChunks ||
+      (targetFile.receivedCompleteSignal && targetFile.receivedChunks === targetFile.totalChunks)
+    ) {
       this.handleIncomingFileComplete(targetFile.fileId);
     }
   }
@@ -805,6 +874,13 @@ export class TransferEngine {
   private handleIncomingFileComplete(fileId: string) {
     const active = this.activeReceiving.get(fileId);
     if (!active) return;
+
+    // If chunks are still in flight, defer until the final chunk is applied
+    if (active.receivedChunks < active.totalChunks) {
+      console.log(`[Transfer] File complete signal arrived early for ${fileId} (${active.receivedChunks}/${active.totalChunks} chunks). Deferring completion.`);
+      active.receivedCompleteSignal = true;
+      return;
+    }
 
     // Direct Blob creation from chunks without duplicate array allocation
     const chunks = active.chunks;
@@ -827,6 +903,7 @@ export class TransferEngine {
     this.activeReceiving.delete(fileId);
     if (active.fileIdHash) {
       this.activeReceivingByHash.delete(active.fileIdHash);
+      this.earlyChunksBuffer.delete(active.fileIdHash);
     }
     playSuccessChime();
 
@@ -959,7 +1036,7 @@ export class TransferEngine {
     playStartChime();
 
     try {
-      // 1. Send Header
+      // 1. Send Header - DUAL ANNOUNCEMENT for 100% Guaranteed Receipt
       const headerMsg = {
         type: 'file-header',
         fileId,
@@ -969,12 +1046,8 @@ export class TransferEngine {
         totalChunks,
       };
 
-      if (isDirectP2P) {
-        this.dataChannel!.send(JSON.stringify(headerMsg));
-      } else {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-          throw new Error('Signaling server is not connected');
-        }
+      // Always announce over WebSocket relay-meta so receiver's UI is GUARANTEED to register and display the transfer immediately
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(
           JSON.stringify({
             type: 'relay-meta',
@@ -988,6 +1061,18 @@ export class TransferEngine {
         );
       }
 
+      // Also announce over DataChannel if open for direct P2P path
+      if (isDirectP2P) {
+        try {
+          this.dataChannel!.send(JSON.stringify(headerMsg));
+        } catch (e) {
+          console.warn('Failed to send file-header over DataChannel:', e);
+        }
+      }
+
+      // Small 35ms pause so receiver initializes transfer state and UI renders before binary flooding
+      await new Promise((r) => setTimeout(r, 35));
+
       let offset = 0;
       let chunkIndex = 0;
       let bytesSent = 0;
@@ -995,7 +1080,7 @@ export class TransferEngine {
       let lastBytesSent = 0;
       const fileIdHash = this.hashString(fileId);
 
-      // Fast block-buffered streaming: reads 4 MB blocks to slash disk I/O latency
+      // Fast block-buffered streaming: reads 2 MB blocks to slash disk I/O latency
       while (offset < file.size) {
         if (this.cancelledTransfers.has(fileId)) {
           break;
@@ -1023,7 +1108,9 @@ export class TransferEngine {
           view.setUint32(8, totalChunks);
           packet.set(chunkPayload, 12);
 
-          if (isDirectP2P) {
+          const canSendP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
+
+          if (canSendP2P) {
             // Keep buffer filled up to 4MB for non-stop saturating throughput
             if (this.dataChannel!.bufferedAmount > BUFFERED_THRESHOLD) {
               await new Promise<void>((resolve) => {
@@ -1042,7 +1129,14 @@ export class TransferEngine {
               });
             }
 
-            this.dataChannel!.send(packet.buffer);
+            try {
+              this.dataChannel!.send(packet.buffer);
+            } catch {
+              // Seamless fallback to WebSocket if DataChannel throws or drops mid-stream
+              if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(packet.buffer);
+              }
+            }
           } else {
             // Direct Raw Binary over WebSocket (0% Base64 overhead, full wire speed)
             while (this.ws && this.ws.bufferedAmount > 2 * 1024 * 1024) {
@@ -1097,11 +1191,14 @@ export class TransferEngine {
 
         if (this.cancelledTransfers.has(fileId)) return;
 
-        // Send completion signal
-        if (isDirectP2P) {
-          this.dataChannel!.send(JSON.stringify({ type: 'file-complete', fileId }));
-        } else {
-          this.ws?.send(
+        // Send completion signal via both DataChannel and WebSocket
+        if (this.dataChannel && this.dataChannel.readyState === 'open') {
+          try {
+            this.dataChannel.send(JSON.stringify({ type: 'file-complete', fileId }));
+          } catch {}
+        }
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(
             JSON.stringify({
               type: 'relay-complete',
               targetPeerId,
