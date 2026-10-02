@@ -133,7 +133,7 @@ export const HotspotGuideModal: React.FC<HotspotGuideModalProps> = ({ isOpen, on
             onClick={onClose}
             className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl transition-colors shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2"
           >
-            <span>{lang === 'hi' ? 'Theek Hai (Close)' : 'Got It, Close'}</span>
+            <span>Close</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

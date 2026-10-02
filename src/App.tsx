@@ -354,7 +354,7 @@ export default function App() {
                 <Laptop className="w-4 h-4" />
               </div>
               <span className="text-xs sm:text-sm font-bold text-slate-800">
-                Laptop Web Link
+                Laptop
               </span>
             </div>
 

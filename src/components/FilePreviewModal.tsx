@@ -128,7 +128,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20"
                 >
                   <Download className="w-4 h-4" />
-                  <span>{lang === 'hi' ? 'Abhi Download Karein' : 'Download File'}</span>
+                  <span>Download</span>
                 </a>
               )}
             </div>

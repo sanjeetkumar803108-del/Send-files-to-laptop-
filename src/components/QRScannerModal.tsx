@@ -142,7 +142,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
             onClick={onClose}
             className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-colors shadow-2xs"
           >
-            {lang === 'hi' ? 'Band Karein (Close)' : 'Close Scanner'}
+            Close
           </button>
         </div>
       </div>

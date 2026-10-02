@@ -70,7 +70,7 @@ export const TransferList: React.FC<TransferListProps> = ({
               onChange={(e) => onToggleAutoDownload(e.target.checked)}
               className="w-4 h-4 rounded bg-white border-slate-300 text-indigo-600 focus:ring-indigo-500"
             />
-            <span className="font-semibold">Auto Save</span>
+            <span className="font-semibold">Auto</span>
           </label>
 
           {transfers.length > 0 && (

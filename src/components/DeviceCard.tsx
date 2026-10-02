@@ -57,7 +57,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
     const cleanPin = inputPin.replace(/\s+/g, '');
     
     if (cleanPin.length !== 6) {
-      setPinError(lang === 'hi' ? '6-digit PIN dalein' : 'Enter 6-digit PIN');
+      setPinError('Invalid');
       return;
     }
 
@@ -67,13 +67,13 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
     try {
       const res = await onJoinRoom(cleanPin);
       if (res === false) {
-        setPinError(lang === 'hi' ? 'Galat PIN!' : 'Wrong PIN!');
+        setPinError('Wrong');
       } else {
         setPinError(null);
         setInputPin('');
       }
     } catch {
-      setPinError(lang === 'hi' ? 'Error!' : 'Error!');
+      setPinError('Error');
     } finally {
       setIsCheckingPin(false);
     }

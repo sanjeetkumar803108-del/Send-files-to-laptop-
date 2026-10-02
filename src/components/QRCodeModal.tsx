@@ -147,7 +147,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
               className="px-3 py-1.5 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 rounded-lg flex items-center gap-1.5 transition-colors border border-slate-200 shadow-2xs"
             >
               {copiedPin ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-              {copiedPin ? 'Copied' : (lang === 'hi' ? 'Copy PIN' : 'Copy PIN')}
+              <span>{copiedPin ? 'Copied' : 'Copy'}</span>
             </button>
           </div>
 
@@ -173,7 +173,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
                 className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/20 transition-colors"
               >
                 <Camera className="w-4 h-4" />
-                <span>{lang === 'hi' ? 'Camera Scan' : 'Scan QR'}</span>
+                <span>Scan</span>
               </button>
             )}
 
@@ -182,7 +182,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
               className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 transition-colors"
             >
               <Share2 className="w-4 h-4" />
-              <span>{lang === 'hi' ? 'WhatsApp' : 'Share'}</span>
+              <span>Share</span>
             </button>
           </div>
         </div>

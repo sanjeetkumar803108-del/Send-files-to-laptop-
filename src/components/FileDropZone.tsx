@@ -153,7 +153,7 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
                 onClick={onOpenQR}
                 className="font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-0.5"
               >
-                <span>Pair QR</span>
+                <span>Pair</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -212,7 +212,7 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>{isPeerConnected ? 'Send' : 'Connect First'}</span>
+              <span>{isPeerConnected ? 'Send' : 'Connect'}</span>
             </button>
           </div>
         </div>

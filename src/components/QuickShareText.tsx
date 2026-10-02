@@ -46,7 +46,7 @@ export const QuickShareText: React.FC<QuickShareTextProps> = ({
           </div>
           <div className="flex-1">
             <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-              Text Share
+              Text
             </h4>
           </div>
           <div className="p-1 text-slate-400 group-hover:text-slate-600">
