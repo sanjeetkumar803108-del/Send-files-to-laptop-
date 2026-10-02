@@ -1,10 +1,10 @@
 import { PeerDevice, ConnectionMode, TransferProgress, SharedSnippet } from '../types/transfer';
 import { playStartChime, playSuccessChime } from '../utils/audio';
 
-const CHUNK_SIZE = 128 * 1024; // 128 KB high-speed chunks
-const READ_BLOCK_SIZE = 4 * 1024 * 1024; // 4 MB fast disk read block
-const BUFFERED_THRESHOLD = 8 * 1024 * 1024; // 8 MB pipeline to saturate Wi-Fi speed
-const LOW_BUFFER_THRESHOLD = 1 * 1024 * 1024; // 1 MB resume threshold
+const CHUNK_SIZE = 64 * 1024 - 16; // 65,520 B (+12 B header = 65,532 B, perfectly fits within Android WebRTC 64KB SCTP limit)
+const READ_BLOCK_SIZE = 2 * 1024 * 1024; // 2 MB fast disk read block
+const BUFFERED_THRESHOLD = 4 * 1024 * 1024; // 4 MB smooth pipeline for mobile throughput
+const LOW_BUFFER_THRESHOLD = 512 * 1024; // 512 KB resume threshold
 
 export type ConnectionCallback = (mode: ConnectionMode) => void;
 export type PeersCallback = (peers: PeerDevice[]) => void;
@@ -44,6 +44,7 @@ export class TransferEngine {
   public snippets: SharedSnippet[] = [];
 
   private activeReceiving: Map<string, ActiveReceivingFile> = new Map();
+  private activeReceivingByHash: Map<number, ActiveReceivingFile> = new Map();
   private sendQueue: { file: File; targetPeerId: string }[] = [];
   private isSending = false;
   private cancelledTransfers = new Set<string>();
@@ -304,22 +305,25 @@ export class TransferEngine {
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
         { urls: 'stun:stun.cloudflare.com:3478' },
+        { urls: 'stun:stun.services.mozilla.com' },
       ],
-      iceCandidatePoolSize: 4,
+      iceCandidatePoolSize: 6,
     };
 
     const pc = new RTCPeerConnection(config);
     this.peerConnection = pc;
 
-    // Timeout safety: if P2P isn't ready in 10 seconds, fallback to relay
+    // Timeout safety: if P2P isn't ready in 12 seconds, fallback to relay
     if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
     this.p2pTimeoutTimer = setTimeout(() => {
       if (this.connectionMode !== 'direct_p2p' && this.connectedPeers.length > 0) {
         console.log('WebRTC P2P timeout - seamlessly switching to Relay Mode');
         this.setMode('relay');
       }
-    }, 10000);
+    }, 12000);
 
     pc.onicecandidate = (event) => {
       if (event.candidate && this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -544,6 +548,7 @@ export class TransferEngine {
     };
 
     this.activeReceiving.set(fileId, activeFile);
+    this.activeReceivingByHash.set(activeFile.fileIdHash, activeFile);
 
     const progress: TransferProgress = {
       fileId,
@@ -574,15 +579,8 @@ export class TransferEngine {
     const chunkIndex = view.getUint32(4);
     const payload = new Uint8Array(buffer, 12);
 
-    // Fast lookup by pre-computed fileIdHash
-    let targetFile: ActiveReceivingFile | undefined;
-    for (const file of this.activeReceiving.values()) {
-      if (file.fileIdHash === fileIdHash) {
-        targetFile = file;
-        break;
-      }
-    }
-
+    // Instant O(1) lookup by pre-computed fileIdHash
+    const targetFile = this.activeReceivingByHash.get(fileIdHash);
     if (!targetFile) return;
     this.applyChunk(targetFile, chunkIndex, payload);
   }
@@ -611,8 +609,8 @@ export class TransferEngine {
     }
 
     const now = Date.now();
-    // Update progress throttled to 100ms or on completion
-    if (now - targetFile.lastProgressUpdate > 100 || targetFile.receivedChunks === targetFile.totalChunks) {
+    // Update progress throttled to 200ms or on completion to prevent mobile JS thread choke
+    if (now - targetFile.lastProgressUpdate > 200 || targetFile.receivedChunks === targetFile.totalChunks) {
       const timeDiff = (now - targetFile.lastProgressUpdate) / 1000;
       if (timeDiff > 0.05) {
         const bytesDiff = targetFile.receivedBytes - targetFile.lastBytesCount;
@@ -663,6 +661,9 @@ export class TransferEngine {
     }
 
     this.activeReceiving.delete(fileId);
+    if (active.fileIdHash) {
+      this.activeReceivingByHash.delete(active.fileIdHash);
+    }
     playSuccessChime();
 
     // Trigger auto-download if enabled
@@ -699,10 +700,18 @@ export class TransferEngine {
         }));
       }
     }
+    const active = this.activeReceiving.get(fileId);
+    if (active?.fileIdHash) {
+      this.activeReceivingByHash.delete(active.fileIdHash);
+    }
     this.activeReceiving.delete(fileId);
   }
 
   private cancelIncomingTransfer(fileId: string) {
+    const active = this.activeReceiving.get(fileId);
+    if (active?.fileIdHash) {
+      this.activeReceivingByHash.delete(active.fileIdHash);
+    }
     this.activeReceiving.delete(fileId);
     const progress = this.transfers.get(fileId);
     if (progress) {
@@ -843,7 +852,7 @@ export class TransferEngine {
           packet.set(chunkPayload, 12);
 
           if (isDirectP2P) {
-            // Keep buffer filled up to 8MB for non-stop saturating throughput
+            // Keep buffer filled up to 4MB for non-stop saturating throughput
             if (this.dataChannel!.bufferedAmount > BUFFERED_THRESHOLD) {
               await new Promise<void>((resolve) => {
                 if (!this.dataChannel || this.dataChannel.readyState !== 'open') return resolve();
@@ -856,7 +865,7 @@ export class TransferEngine {
                 timeoutId = setTimeout(() => {
                   this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
                   resolve();
-                }, 400);
+                }, 250);
                 this.dataChannel.addEventListener('bufferedamountlow', onLow);
               });
             }
@@ -864,7 +873,7 @@ export class TransferEngine {
             this.dataChannel!.send(packet.buffer);
           } else {
             // Direct Raw Binary over WebSocket (0% Base64 overhead, full wire speed)
-            while (this.ws && this.ws.bufferedAmount > 4 * 1024 * 1024) {
+            while (this.ws && this.ws.bufferedAmount > 2 * 1024 * 1024) {
               await new Promise((r) => setTimeout(r, 10));
             }
 
@@ -905,6 +914,17 @@ export class TransferEngine {
       }
 
       if (!this.cancelledTransfers.has(fileId)) {
+        // Await buffer to fully drain before announcing completion to prevent premature 100% false completion
+        while (
+          !this.cancelledTransfers.has(fileId) &&
+          ((isDirectP2P && this.dataChannel && this.dataChannel.bufferedAmount > 0) ||
+           (!isDirectP2P && this.ws && this.ws.bufferedAmount > 0))
+        ) {
+          await new Promise((r) => setTimeout(r, 30));
+        }
+
+        if (this.cancelledTransfers.has(fileId)) return;
+
         // Send completion signal
         if (isDirectP2P) {
           this.dataChannel!.send(JSON.stringify({ type: 'file-complete', fileId }));
