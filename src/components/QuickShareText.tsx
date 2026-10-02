@@ -85,9 +85,9 @@ export const QuickShareText: React.FC<QuickShareTextProps> = ({
                   key={snip.id}
                   className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3 text-xs"
                 >
-                  <div className="truncate">
+                  <div className="min-w-0 flex-1 truncate">
                     <p className="text-slate-800 font-mono text-xs select-all truncate">{snip.text}</p>
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    <span className="text-[10px] text-slate-400 mt-0.5 block truncate">
                       {snip.senderName} • {new Date(snip.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>

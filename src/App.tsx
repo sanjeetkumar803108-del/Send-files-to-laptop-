@@ -300,15 +300,17 @@ export default function App() {
   const currentOrigin = getPublicAppUrl();
 
   return (
-    <div className="min-h-screen bg-slate-50/90 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white relative overflow-x-hidden">
-      {/* Ambient Glassmorphic Mesh Glows */}
-      <div className="fixed top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-br from-indigo-200/40 via-purple-200/30 to-pink-200/20 blur-[130px] pointer-events-none -z-10" />
-      <div className="fixed bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-tl from-cyan-200/40 via-sky-200/30 to-emerald-200/20 blur-[130px] pointer-events-none -z-10" />
-      <div className="fixed top-[35%] right-[15%] w-[35vw] h-[35vw] rounded-full bg-gradient-to-tr from-violet-200/20 to-blue-200/20 blur-[110px] pointer-events-none -z-10" />
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-50/90 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white relative">
+      {/* Ambient Glassmorphic Mesh Glows - fully isolated inside an overflow-hidden wrapper */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-br from-indigo-200/40 via-purple-200/30 to-pink-200/20 blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-tl from-cyan-200/40 via-sky-200/30 to-emerald-200/20 blur-[120px]" />
+        <div className="absolute top-[35%] right-[10%] w-[35vw] h-[35vw] rounded-full bg-gradient-to-tr from-violet-200/20 to-blue-200/20 blur-[100px]" />
+      </div>
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200 max-w-[90vw]">
           <div className={`px-4 py-2.5 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-semibold backdrop-blur-xl ${
             toastMessage.type === 'success'
               ? 'bg-white/90 text-emerald-700 border-emerald-200/80 shadow-emerald-500/10'
@@ -317,11 +319,11 @@ export default function App() {
               : 'bg-white/90 text-indigo-700 border-indigo-200/80 shadow-indigo-500/10'
           }`}>
             {toastMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-amber-500" />
+              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
             )}
-            <span>{toastMessage.text}</span>
+            <span className="truncate">{toastMessage.text}</span>
           </div>
         </div>
       )}
@@ -338,7 +340,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <main className="flex-1 max-w-5xl w-full mx-auto px-3.5 sm:px-6 py-5 sm:py-8 space-y-4 sm:space-y-6 overflow-hidden">
         {/* On Laptop when waiting to connect: Show Instant QR Code & 6-Digit PIN directly on screen */}
         {deviceType === 'laptop' && !isPeerConnected && (
           <LaptopPairingHero roomId={roomId} lang={lang} />
@@ -346,8 +348,8 @@ export default function App() {
 
         {/* Laptop Web Link - 3 words title, zero banner clutter */}
         {!isPeerConnected && deviceType === 'mobile' && (
-          <div className="w-full bg-white/75 backdrop-blur-2xl border border-white/80 rounded-2xl p-3 sm:p-3.5 shadow-[0_10px_35px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
+          <div className="w-full bg-white/75 backdrop-blur-2xl border border-white/80 rounded-2xl p-3 sm:p-3.5 shadow-[0_10px_35px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2">
               <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 shrink-0">
                 <Laptop className="w-4 h-4" />
               </div>
@@ -357,7 +359,7 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs text-slate-700 truncate max-w-xs">
+              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs text-slate-700 truncate max-w-[170px] xs:max-w-[220px] sm:max-w-xs">
                 <span className="truncate">{currentOrigin}</span>
               </div>
               <button

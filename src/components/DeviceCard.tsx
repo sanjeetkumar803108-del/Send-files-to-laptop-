@@ -94,16 +94,16 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
     <div className="w-full bg-white/75 backdrop-blur-2xl border border-white/80 rounded-2xl p-4 sm:p-5 shadow-[0_10px_35px_rgba(0,0,0,0.04)]">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-center">
         {/* My Device */}
-        <div className="flex items-center justify-between p-3.5 bg-slate-50/80 border border-slate-200/80 rounded-xl shadow-xs">
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl border ${
+        <div className="flex items-center justify-between p-3 sm:p-3.5 bg-slate-50/80 border border-slate-200/80 rounded-xl shadow-xs gap-2">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1 truncate">
+            <div className={`p-2 sm:p-2.5 rounded-xl border shrink-0 ${
               myDeviceType === 'mobile'
                 ? 'bg-purple-50 text-purple-600 border-purple-200/80'
                 : 'bg-indigo-50 text-indigo-600 border-indigo-200/80'
             }`}>
               {myDeviceType === 'mobile' ? <Smartphone className="w-5 h-5" /> : <Laptop className="w-5 h-5" />}
             </div>
-            <div>
+            <div className="min-w-0 flex-1 truncate">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
                   {lang === 'hi' ? 'This Device' : 'This Device'}
@@ -124,7 +124,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
                     type="text"
                     value={tempName}
                     onChange={(e) => setTempName(e.target.value)}
-                    className="bg-white border border-indigo-400 rounded px-2 py-0.5 text-xs text-slate-800 outline-none w-32 shadow-xs"
+                    className="bg-white border border-indigo-400 rounded px-2 py-0.5 text-xs text-slate-800 outline-none w-28 shadow-xs"
                     autoFocus
                     onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
                   />
@@ -136,14 +136,14 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-sm font-bold text-slate-800">{myDeviceName}</span>
+                <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                  <span className="text-sm font-bold text-slate-800 truncate max-w-[110px] xs:max-w-[160px] sm:max-w-xs">{myDeviceName}</span>
                   <button
                     onClick={() => {
                       setTempName(myDeviceName);
                       setIsEditing(true);
                     }}
-                    className="text-slate-400 hover:text-slate-600 transition-colors"
+                    className="text-slate-400 hover:text-slate-600 transition-colors shrink-0"
                     title="Rename"
                   >
                     <Edit2 className="w-3 h-3" />
@@ -153,32 +153,32 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
             </div>
           </div>
 
-          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white text-slate-600 border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white text-slate-600 border border-slate-200 shadow-2xs shrink-0">
             {myDeviceType === 'mobile' ? 'Mobile' : 'Laptop'}
           </span>
         </div>
 
         {/* Peer Device */}
-        <div className={`p-3.5 rounded-xl border transition-all ${
+        <div className={`p-3 sm:p-3.5 rounded-xl border transition-all ${
           hasPeer
             ? 'bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-200/50 shadow-xs'
             : 'bg-slate-50/60 border-slate-200/80 border-dashed'
         }`}>
           {hasPeer ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`p-2.5 rounded-xl border ${
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 truncate">
+                <div className={`p-2 sm:p-2.5 rounded-xl border shrink-0 ${
                   peer.deviceType === 'mobile'
                     ? 'bg-purple-50 text-purple-600 border-purple-200'
                     : 'bg-emerald-50 text-emerald-600 border-emerald-200'
                 }`}>
                   {peer.deviceType === 'mobile' ? <Smartphone className="w-5 h-5" /> : <Laptop className="w-5 h-5" />}
                 </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                <div className="min-w-0 flex-1 truncate">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
                     Device
                   </span>
-                  <h4 className="text-sm font-bold text-slate-800 mt-0.5">{peer.name}</h4>
+                  <h4 className="text-sm font-bold text-slate-800 mt-0.5 truncate max-w-[110px] xs:max-w-[160px] sm:max-w-xs">{peer.name}</h4>
                 </div>
               </div>
 

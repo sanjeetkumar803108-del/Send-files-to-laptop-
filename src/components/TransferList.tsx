@@ -99,16 +99,16 @@ export const TransferList: React.FC<TransferListProps> = ({
               className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-200/80 shadow-xs space-y-2"
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 truncate">
+                <div className="flex items-center gap-3 min-w-0 flex-1 truncate">
                   <div className="p-2 rounded-lg bg-white border border-slate-200 shrink-0 shadow-2xs">
                     {getFileIcon(item.type)}
                   </div>
-                  <div className="truncate">
+                  <div className="min-w-0 flex-1 truncate">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-800 truncate max-w-[200px] sm:max-w-xs">
+                      <span className="text-xs font-bold text-slate-800 truncate max-w-[130px] xs:max-w-[180px] sm:max-w-xs">
                         {item.name}
                       </span>
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold shrink-0 ${
                         item.direction === 'outgoing'
                           ? 'bg-purple-100 text-purple-700 border border-purple-200'
                           : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
@@ -117,7 +117,7 @@ export const TransferList: React.FC<TransferListProps> = ({
                         {item.direction === 'outgoing' ? 'Sending' : 'Receiving'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mt-0.5">
                       <span>{formatBytes(item.transferredBytes)} / {formatBytes(item.size)}</span>
                       <span>•</span>
                       <span className="font-mono text-emerald-600 font-semibold flex items-center gap-0.5">
@@ -160,17 +160,17 @@ export const TransferList: React.FC<TransferListProps> = ({
               key={item.fileId}
               className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-slate-100/60 transition-colors flex items-center justify-between gap-3 text-xs"
             >
-              <div className="flex items-center gap-2.5 truncate">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 truncate">
                 <div className="p-1.5 rounded-lg bg-white border border-slate-200 shrink-0 shadow-2xs">
                   {getFileIcon(item.type)}
                 </div>
-                <div className="truncate">
+                <div className="min-w-0 flex-1 truncate">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-800 truncate max-w-[200px] sm:max-w-sm">
+                    <span className="font-semibold text-slate-800 truncate max-w-[130px] xs:max-w-[200px] sm:max-w-sm">
                       {item.name}
                     </span>
                     {item.status === 'completed' ? (
-                      <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">
                         <CheckCircle className="w-3 h-3" />
                         Complete
                       </span>
