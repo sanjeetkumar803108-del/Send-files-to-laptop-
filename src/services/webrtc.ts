@@ -311,8 +311,8 @@ export class TransferEngine {
         });
       }
 
-      // If peer stopped responding for more than 7 seconds, clear stale connection immediately!
-      if (now - this.lastPeerHeartbeat > 7000) {
+      // If peer stopped responding for more than 16 seconds, clear stale connection
+      if (now - this.lastPeerHeartbeat > 16000) {
         console.warn('[Heartbeat] Peer heartbeat timed out');
         this.connectedPeers = [];
         this.onPeersChange?.([]);
@@ -648,6 +648,11 @@ export class TransferEngine {
         },
         {
           urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+          username: 'openrelay',
+          credential: 'openrelay',
+        },
+        {
+          urls: 'turns:openrelay.metered.ca:443?transport=tcp',
           username: 'openrelay',
           credential: 'openrelay',
         },
@@ -1419,16 +1424,32 @@ export class TransferEngine {
 
             this.ws.send(packet.buffer);
           } else {
-            // Wait up to 5 seconds for WebRTC DataChannel to open
+            // Wait briefly for WebRTC DataChannel to open, otherwise fallback to Cloud Relay
             let waited = 0;
-            while ((!this.dataChannel || this.dataChannel.readyState !== 'open') && waited < 50) {
+            while ((!this.dataChannel || this.dataChannel.readyState !== 'open') && waited < 20) {
               await new Promise((r) => setTimeout(r, 100));
               waited++;
             }
             if (this.dataChannel && this.dataChannel.readyState === 'open') {
               this.dataChannel.send(packet.buffer);
+            } else if (this.cloudClient) {
+              // Convert chunk to base64 and send via Cloud Relay
+              let binary = '';
+              const len = chunkPayload.byteLength;
+              for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(chunkPayload[i]);
+              }
+              const base64Data = btoa(binary);
+              this.sendSignaling({
+                type: 'relay-chunk',
+                targetPeerId,
+                fileId,
+                chunkIndex,
+                data: base64Data,
+              });
+              await new Promise((r) => setTimeout(r, 8));
             } else {
-              throw new Error('P2P connection establish hone ka intezaar karein.');
+              throw new Error('Connection establish hone ka intezaar karein.');
             }
           }
 

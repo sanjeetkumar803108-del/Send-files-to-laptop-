@@ -8,14 +8,18 @@ export interface CloudSignalingCallbacks {
   onBinaryChunk?: (buffer: ArrayBuffer) => void;
 }
 
-const PRIMARY_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+const PUBLIC_BROKERS = [
+  'wss://broker.emqx.io:8084/mqtt',
+  'wss://broker.hivemq.com:8884/mqtt',
+];
 
 export class CloudSignalingClient {
   private client: MqttClient | null = null;
-  private currentBroker = PRIMARY_BROKER;
+  private brokerIndex = 0;
   private isConnected = false;
   private isDestroyed = false;
   private pendingQueue: any[] = [];
+  private announceTimer: any = null;
 
   public roomId: string;
   public peerId: string;
@@ -39,6 +43,10 @@ export class CloudSignalingClient {
     this.callbacks = callbacks;
   }
 
+  private get currentBroker(): string {
+    return PUBLIC_BROKERS[this.brokerIndex % PUBLIC_BROKERS.length];
+  }
+
   private get broadcastTopic(): string {
     return `hsd/v1/${this.roomId}/b`;
   }
@@ -58,14 +66,35 @@ export class CloudSignalingClient {
       console.log('[CloudSignaling] Reconnecting to broker...');
       this.initClient(this.currentBroker);
     } else {
-      // Re-announce join in room
-      this.publishBroadcast({
-        type: 'join',
-        roomId: this.roomId,
-        peerId: this.peerId,
-        name: this.deviceName,
-        deviceType: this.deviceType,
-      });
+      this.announcePresence();
+    }
+  }
+
+  private announcePresence() {
+    this.publishBroadcast({
+      type: 'join',
+      roomId: this.roomId,
+      peerId: this.peerId,
+      name: this.deviceName,
+      deviceType: this.deviceType,
+    });
+  }
+
+  private startDiscoveryAnnouncement() {
+    this.stopDiscoveryAnnouncement();
+    this.announceTimer = setInterval(() => {
+      // While we are waiting and have no known peers, keep announcing every 3 seconds so
+      // newly arriving mobile or laptop pairs discover each other instantly
+      if (this.isConnected && !this.isDestroyed && this.knownPeers.size === 0) {
+        this.announcePresence();
+      }
+    }, 3000);
+  }
+
+  private stopDiscoveryAnnouncement() {
+    if (this.announceTimer) {
+      clearInterval(this.announceTimer);
+      this.announceTimer = null;
     }
   }
 
@@ -91,21 +120,16 @@ export class CloudSignalingClient {
         this.isConnected = true;
         console.log('[CloudSignaling] Connected to relay broker:', brokerUrl);
 
-        // Subscribe to room broadcast and peer's private topic
-        client.subscribe([this.broadcastTopic, this.privateTopic], { qos: 1 }, (err) => {
+        // Subscribe to room broadcast and peer's private inbox topic
+        client.subscribe([this.broadcastTopic, this.privateTopic], { qos: 0 }, (err) => {
           if (err) {
             console.warn('[CloudSignaling] Subscription error:', err);
             return;
           }
 
-          // Announce join to room
-          this.publishBroadcast({
-            type: 'join',
-            roomId: this.roomId,
-            peerId: this.peerId,
-            name: this.deviceName,
-            deviceType: this.deviceType,
-          });
+          // Announce join to room immediately
+          this.announcePresence();
+          this.startDiscoveryAnnouncement();
 
           // Flush any pending queued signaling messages
           while (this.pendingQueue.length > 0) {
@@ -119,14 +143,28 @@ export class CloudSignalingClient {
         });
       });
 
-      client.on('message', (topic: string, payload: Buffer) => {
+      client.on('message', (_topic: string, payload: any) => {
         if (this.isDestroyed) return;
         try {
-          const str = payload.toString('utf-8');
+          // CRITICAL FIX: In browsers/WebViews, MQTT.js returns a Uint8Array.
+          // Calling Uint8Array.prototype.toString('utf-8') does NOT decode UTF-8;
+          // it returns comma-separated bytes (e.g. "123,34,97..."), breaking JSON.parse.
+          // We use TextDecoder to guarantee correct UTF-8 string decoding across all devices!
+          let str = '';
+          if (typeof payload === 'string') {
+            str = payload;
+          } else if (payload instanceof Uint8Array || (typeof Buffer !== 'undefined' && Buffer.isBuffer(payload))) {
+            str = new TextDecoder('utf-8').decode(payload);
+          } else if (payload && payload.buffer instanceof ArrayBuffer) {
+            str = new TextDecoder('utf-8').decode(new Uint8Array(payload.buffer));
+          } else {
+            str = String(payload);
+          }
+
           const msg = JSON.parse(str);
-          this.handleIncomingMessage(topic, msg);
+          this.handleIncomingMessage(_topic, msg);
         } catch (e) {
-          console.error('[CloudSignaling] Error parsing message on topic', topic, e);
+          console.error('[CloudSignaling] Error parsing message on topic', _topic, e);
         }
       });
 
@@ -140,10 +178,13 @@ export class CloudSignalingClient {
 
       client.on('error', (err) => {
         console.warn('[CloudSignaling] Connection error:', err);
+        // If broker failed, try alternate broker on next reconnection attempt
+        this.brokerIndex++;
         this.callbacks.onError(err);
       });
     } catch (err) {
       console.error('[CloudSignaling] Setup failed:', err);
+      this.brokerIndex++;
       this.callbacks.onError(err);
     }
   }
@@ -171,6 +212,7 @@ export class CloudSignalingClient {
           type: 'joined',
           yourPeerId: newPeer.id,
           roomId: this.roomId,
+          fromPeerId: this.peerId,
           peers: [
             {
               id: this.peerId,
@@ -200,7 +242,6 @@ export class CloudSignalingClient {
       }
 
       case 'check-room': {
-        // Reply that room is active
         this.publishPrivate(msg.fromPeerId, {
           type: 'room-check-result',
           roomId: this.roomId,
@@ -230,7 +271,6 @@ export class CloudSignalingClient {
 
   public send(msg: any) {
     if (!this.isConnected || !this.client) {
-      // Queue message so it sends as soon as MQTT connection is ready
       this.pendingQueue.push(msg);
       return;
     }
@@ -244,14 +284,13 @@ export class CloudSignalingClient {
   }
 
   public checkRoom(_targetRoomId: string): Promise<{ isValid: boolean; peerCount: number }> {
-    // Instant non-blocking resolution
     return Promise.resolve({ isValid: true, peerCount: 1 });
   }
 
   private publishBroadcast(msg: any) {
     if (!this.client || !this.isConnected) return;
     try {
-      this.client.publish(this.broadcastTopic, JSON.stringify(msg), { qos: 1 });
+      this.client.publish(this.broadcastTopic, JSON.stringify(msg), { qos: 0 });
     } catch {}
   }
 
@@ -259,16 +298,16 @@ export class CloudSignalingClient {
     if (!this.client || !this.isConnected) return;
     try {
       const topic = `hsd/v1/${this.roomId}/p/${targetPeerId}`;
-      this.client.publish(topic, JSON.stringify(msg), { qos: 1 });
+      this.client.publish(topic, JSON.stringify(msg), { qos: 0 });
     } catch {}
   }
 
   public disconnect() {
     this.isDestroyed = true;
+    this.stopDiscoveryAnnouncement();
     this.pendingQueue = [];
     if (this.client && this.isConnected) {
       try {
-        // Announce leave before closing
         this.publishBroadcast({
           type: 'peer-left',
           peerId: this.peerId,
