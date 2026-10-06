@@ -5,8 +5,9 @@ import { CloudSignalingClient } from './cloudSignaling';
 
 const CHUNK_SIZE = 32 * 1024 - 16; // 32 KB chunk: completely safe across all Android WebViews, iOS, and PC without SCTP overflow
 const READ_BLOCK_SIZE = 2 * 1024 * 1024; // 2 MB fast disk read block
-const BUFFERED_THRESHOLD = 1024 * 1024; // 1 MB buffer limit to prevent SCTP congestion
-const LOW_BUFFER_THRESHOLD = 256 * 1024; // 256 KB resume threshold
+const BUFFERED_THRESHOLD = 2 * 1024 * 1024; // 2 MB buffer limit for high throughput without SCTP congestion
+const LOW_BUFFER_THRESHOLD = 512 * 1024; // 512 KB resume threshold
+const SEGMENT_FLUSH_BYTES = 8 * 1024 * 1024; // 8 MB: Flush every 8MB into a Blob to keep JS Heap < 16MB regardless of file size
 
 export type ConnectionCallback = (mode: ConnectionMode) => void;
 export type PeersCallback = (peers: PeerDevice[]) => void;
@@ -22,7 +23,12 @@ interface ActiveReceivingFile {
   size: number;
   mimeType: string;
   totalChunks: number;
-  chunks: (Uint8Array | null)[];
+  // Segmented Blob Streaming - eliminates Out Of Memory crashes on large files (100MB - 10GB+)
+  blobSegments: Blob[];
+  currentSegmentChunks: Uint8Array[];
+  currentSegmentBytes: number;
+  pendingChunks: Map<number, Uint8Array>;
+  nextFlushedIndex: number;
   receivedBytes: number;
   receivedChunks: number;
   startTime: number;
@@ -516,9 +522,18 @@ export class TransferEngine {
 
         if (peers.length > 0) {
           this.lastPeerHeartbeat = Date.now();
-          // A peer is already here; we initiate WebRTC connection
-          this.setMode('connecting');
-          this.initiatePeerConnection(peers[0].id, true);
+          const targetId = peers[0].id;
+          // Only start handshake if DataChannel is not open and peer connection is not active
+          const isChannelOpen = this.dataChannel && this.dataChannel.readyState === 'open';
+          const isPcActive =
+            this.peerConnection &&
+            (this.peerConnection.connectionState === 'connecting' ||
+              this.peerConnection.connectionState === 'connected');
+          if (!isChannelOpen && !isPcActive) {
+            this.setMode('connecting');
+            const asInitiator = this.peerId > targetId;
+            this.initiatePeerConnection(targetId, asInitiator);
+          }
         } else {
           this.setMode('connecting');
         }
@@ -533,8 +548,17 @@ export class TransferEngine {
           this.connectedPeers = [...this.connectedPeers, newPeer];
           this.onPeersChange?.(this.connectedPeers);
         }
-        // Prepare receiver side for incoming peer connection
-        this.initiatePeerConnection(newPeer.id, false);
+        // Only start handshake if DataChannel is not open and peer connection is not active
+        const isChannelOpen = this.dataChannel && this.dataChannel.readyState === 'open';
+        const isPcActive =
+          this.peerConnection &&
+          (this.peerConnection.connectionState === 'connecting' ||
+            this.peerConnection.connectionState === 'connected');
+        if (!isChannelOpen && !isPcActive) {
+          this.setMode('connecting');
+          const asInitiator = this.peerId > newPeer.id;
+          this.initiatePeerConnection(newPeer.id, asInitiator);
+        }
         break;
       }
 
@@ -626,6 +650,19 @@ export class TransferEngine {
 
   // --- WebRTC Peer-to-Peer Negotiation ---
   private initiatePeerConnection(targetPeerId: string, asInitiator: boolean) {
+    if (this.dataChannel && this.dataChannel.readyState === 'open') {
+      console.log('[WebRTC] DataChannel already open, skipping re-negotiation');
+      return;
+    }
+
+    if (
+      this.peerConnection &&
+      (this.peerConnection.connectionState === 'connected' || this.peerConnection.iceConnectionState === 'connected')
+    ) {
+      console.log('[WebRTC] PeerConnection already connected, skipping re-negotiation');
+      return;
+    }
+
     this.isInitiator = asInitiator;
     this.pendingCandidates = [];
 
@@ -644,27 +681,17 @@ export class TransferEngine {
         { urls: 'stun:stun.cloudflare.com:3478' },
         { urls: 'stun:stun.services.mozilla.com' },
         {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelay',
-          credential: 'openrelay',
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelay',
-          credential: 'openrelay',
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-          username: 'openrelay',
-          credential: 'openrelay',
-        },
-        {
-          urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+          urls: [
+            'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:443',
+            'turn:openrelay.metered.ca:443?transport=tcp',
+          ],
           username: 'openrelay',
           credential: 'openrelay',
         },
       ],
-      iceCandidatePoolSize: 6,
+      bundlePolicy: 'max-bundle',
+      iceCandidatePoolSize: 10,
     };
 
     const pc = new RTCPeerConnection(config);
@@ -693,8 +720,10 @@ export class TransferEngine {
       console.log('[WebRTC] ICE Connection State:', pc.iceConnectionState);
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
+        this.cloudClient?.stopDiscoveryAnnouncement();
         this.setMode('direct_p2p');
       } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        this.cloudClient?.startDiscoveryAnnouncement();
         if (this.connectedPeers.length > 0 && this.connectionMode !== 'direct_p2p') {
           this.setMode('relay');
         }
@@ -705,8 +734,10 @@ export class TransferEngine {
       console.log('[WebRTC] Peer Connection State:', pc.connectionState);
       if (pc.connectionState === 'connected') {
         if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
+        this.cloudClient?.stopDiscoveryAnnouncement();
         this.setMode('direct_p2p');
       } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        this.cloudClient?.startDiscoveryAnnouncement();
         if (this.connectedPeers.length > 0 && this.connectionMode !== 'direct_p2p') {
           this.setMode('relay');
         }
@@ -759,11 +790,13 @@ export class TransferEngine {
 
     channel.onopen = () => {
       if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
+      this.cloudClient?.stopDiscoveryAnnouncement();
       this.setMode('direct_p2p');
-      console.log('Direct P2P DataChannel opened successfully');
+      console.log('⚡ Direct P2P DataChannel opened successfully');
     };
 
     channel.onclose = () => {
+      this.cloudClient?.startDiscoveryAnnouncement();
       if (this.connectedPeers.length > 0) {
         this.setMode('relay');
       }
@@ -771,6 +804,7 @@ export class TransferEngine {
 
     channel.onerror = (err) => {
       console.warn('DataChannel error:', err);
+      this.cloudClient?.startDiscoveryAnnouncement();
       if (this.connectedPeers.length > 0) {
         this.setMode('relay');
       }
@@ -850,14 +884,15 @@ export class TransferEngine {
           });
         }
       } else if (signal.candidate) {
-        if (!pc.remoteDescription) {
+        if (!pc.remoteDescription || this.isSettingRemoteAnswerPending || pc.signalingState !== 'stable') {
           this.pendingCandidates.push(signal.candidate);
         } else {
           try {
             await pc.addIceCandidate(signal.candidate);
           } catch (err) {
             if (!this.isSettingRemoteAnswerPending) {
-              console.warn('Error adding ice candidate:', err);
+              console.warn('Error adding ice candidate, buffering for retry:', err);
+              this.pendingCandidates.push(signal.candidate);
             }
           }
         }
@@ -887,6 +922,7 @@ export class TransferEngine {
         this.cancelIncomingTransfer(msg.fileId);
         break;
       case 'header-ack':
+      case 'transfer-ack':
         this.lastPeerHeartbeat = Date.now();
         break;
       case 'hb-ping':
@@ -914,7 +950,7 @@ export class TransferEngine {
     }
   }
 
-  // --- File Reception Logic ---
+  // --- File Reception Logic (Segmented Blob Streaming for High Speed & Low RAM) ---
   private handleIncomingFileHeader(
     fileId: string,
     name: string,
@@ -945,7 +981,11 @@ export class TransferEngine {
       size,
       mimeType: mimeType || 'application/octet-stream',
       totalChunks,
-      chunks: new Array(totalChunks).fill(null),
+      blobSegments: [],
+      currentSegmentChunks: [],
+      currentSegmentBytes: 0,
+      pendingChunks: new Map(),
+      nextFlushedIndex: 0,
       receivedBytes: 0,
       receivedChunks: 0,
       startTime: Date.now(),
@@ -1052,15 +1092,48 @@ export class TransferEngine {
       this.notifyProgress();
     }
 
-    if (targetFile.chunks[chunkIndex] === null) {
-      targetFile.chunks[chunkIndex] = payload;
+    // Only process chunk if not already recorded
+    if (!targetFile.pendingChunks.has(chunkIndex)) {
+      targetFile.pendingChunks.set(chunkIndex, payload);
       targetFile.receivedBytes += payload.byteLength;
       targetFile.receivedChunks += 1;
+
+      // Sequential flush of contiguous chunks into blob segments to free JS Heap memory
+      while (targetFile.pendingChunks.has(targetFile.nextFlushedIndex)) {
+        const chunk = targetFile.pendingChunks.get(targetFile.nextFlushedIndex)!;
+        targetFile.pendingChunks.delete(targetFile.nextFlushedIndex);
+        targetFile.currentSegmentChunks.push(chunk);
+        targetFile.currentSegmentBytes += chunk.byteLength;
+        targetFile.nextFlushedIndex++;
+
+        // Flush into a Blob segment once segment reaches SEGMENT_FLUSH_BYTES (8 MB)
+        if (targetFile.currentSegmentBytes >= SEGMENT_FLUSH_BYTES) {
+          const segBlob = new Blob(targetFile.currentSegmentChunks as unknown as BlobPart[], {
+            type: 'application/octet-stream',
+          });
+          targetFile.blobSegments.push(segBlob);
+          targetFile.currentSegmentChunks = [];
+          targetFile.currentSegmentBytes = 0;
+        }
+      }
+
+      // Send periodic ACK to sender every 250 chunks (~8MB) to keep DataChannel and heartbeat fresh
+      if (targetFile.receivedChunks % 250 === 0 && this.dataChannel && this.dataChannel.readyState === 'open') {
+        try {
+          this.dataChannel.send(
+            JSON.stringify({
+              type: 'transfer-ack',
+              fileId: targetFile.fileId,
+              receivedChunks: targetFile.receivedChunks,
+            })
+          );
+        } catch {}
+      }
     }
 
     const now = Date.now();
-    // Update progress throttled to 200ms or on completion to prevent mobile JS thread choke
-    if (now - targetFile.lastProgressUpdate > 200 || targetFile.receivedChunks === targetFile.totalChunks) {
+    // Update progress throttled to 150ms or on completion to prevent mobile JS thread choke
+    if (now - targetFile.lastProgressUpdate > 150 || targetFile.receivedChunks === targetFile.totalChunks) {
       const timeDiff = (now - targetFile.lastProgressUpdate) / 1000;
       if (timeDiff > 0.05) {
         const bytesDiff = targetFile.receivedBytes - targetFile.lastBytesCount;
@@ -1101,10 +1174,30 @@ export class TransferEngine {
       return;
     }
 
-    // Direct Blob creation from chunks without duplicate array allocation
-    const chunks = active.chunks;
-    active.chunks = []; // Release reference so garbage collector can free chunks memory once Blob takes ownership
-    const blob = new Blob(chunks as unknown as BlobPart[], { type: active.mimeType });
+    // Flush any remaining chunks in the active segment
+    if (active.currentSegmentChunks.length > 0) {
+      const remainingBlob = new Blob(active.currentSegmentChunks as unknown as BlobPart[], {
+        type: 'application/octet-stream',
+      });
+      active.blobSegments.push(remainingBlob);
+      active.currentSegmentChunks = [];
+      active.currentSegmentBytes = 0;
+    }
+
+    // If there were any out-of-order chunks still in pendingChunks, sort and flush them
+    if (active.pendingChunks.size > 0) {
+      const remainingIndices = Array.from(active.pendingChunks.keys()).sort((a, b) => a - b);
+      const stragglers: Uint8Array[] = [];
+      for (const idx of remainingIndices) {
+        stragglers.push(active.pendingChunks.get(idx)!);
+      }
+      active.blobSegments.push(new Blob(stragglers as unknown as BlobPart[], { type: 'application/octet-stream' }));
+      active.pendingChunks.clear();
+    }
+
+    // Direct Blob creation from lightweight segments (uses negligible heap memory)
+    const blob = new Blob(active.blobSegments as unknown as BlobPart[], { type: active.mimeType });
+    active.blobSegments = []; // Release segment references
     const downloadUrl = URL.createObjectURL(blob);
 
     const progress = this.transfers.get(fileId);
@@ -1292,8 +1385,29 @@ export class TransferEngine {
     if (this.cancelledTransfers.has(fileId)) return;
 
     const peerName = this.getPeerName(targetPeerId);
-    const isDirectP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
-    const chunkSize = CHUNK_SIZE; // 128 KB
+    let isDirectP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
+    const isLocalWs = !!(this.ws && this.ws.readyState === WebSocket.OPEN);
+
+    // If P2P DataChannel is not open yet, wait up to 10 seconds for WebRTC handshake to complete
+    if (!isDirectP2P && !isLocalWs) {
+      console.log('[WebRTC] Waiting for DataChannel to be ready before starting transfer...');
+      let waitCount = 0;
+      while ((!this.dataChannel || this.dataChannel.readyState !== 'open') && waitCount < 40) {
+        if (this.cancelledTransfers.has(fileId)) return;
+        await new Promise((r) => setTimeout(r, 250));
+        waitCount++;
+      }
+      isDirectP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
+    }
+
+    // Large files (> 5MB) cannot be transferred over public MQTT brokers without broker rate-limit termination
+    if (!isDirectP2P && !isLocalWs && file.size > 5 * 1024 * 1024) {
+      throw new Error(
+        'Direct P2P DataChannel connect nahi hua. Kripya dono devices ko same Wi-Fi / Hotspot pe connect karein aur dobara try karein.'
+      );
+    }
+
+    const chunkSize = CHUNK_SIZE; // 32 KB safe chunks
     const totalChunks = Math.ceil(file.size / chunkSize);
 
     let progress = this.transfers.get(fileId);
@@ -1323,7 +1437,7 @@ export class TransferEngine {
     playStartChime();
 
     try {
-      // 1. Send Header - DUAL ANNOUNCEMENT for 100% Guaranteed Receipt
+      // 1. Send Header - DUAL ANNOUNCEMENT for Guaranteed Receipt
       const headerMsg = {
         type: 'file-header',
         fileId,
@@ -1333,7 +1447,16 @@ export class TransferEngine {
         totalChunks,
       };
 
-      // Always announce over signaling relay-meta so receiver's UI is GUARANTEED to register and display the transfer immediately
+      // Announce over DataChannel if open for direct P2P path
+      if (isDirectP2P) {
+        try {
+          this.dataChannel!.send(JSON.stringify(headerMsg));
+        } catch (e) {
+          console.warn('Failed to send file-header over DataChannel:', e);
+        }
+      }
+
+      // Also announce over signaling relay-meta so receiver's UI is GUARANTEED to register and display the transfer immediately
       this.sendSignaling({
         type: 'relay-meta',
         targetPeerId,
@@ -1344,16 +1467,7 @@ export class TransferEngine {
         totalChunks,
       });
 
-      // Also announce over DataChannel if open for direct P2P path
-      if (isDirectP2P) {
-        try {
-          this.dataChannel!.send(JSON.stringify(headerMsg));
-        } catch (e) {
-          console.warn('Failed to send file-header over DataChannel:', e);
-        }
-      }
-
-      // Small 35ms pause so receiver initializes transfer state and UI renders before binary flooding
+      // Small 35ms pause so receiver initializes transfer state and UI renders before binary streaming
       await new Promise((r) => setTimeout(r, 35));
 
       let offset = 0;
@@ -1394,7 +1508,7 @@ export class TransferEngine {
           const canSendP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
 
           if (canSendP2P) {
-            // Strict backpressure loop: wait until buffer drains below threshold to prevent SCTP exhaustion
+            // Strict backpressure loop: wait until buffer drains below threshold to prevent SCTP congestion
             while (
               this.dataChannel &&
               this.dataChannel.readyState === 'open' &&
@@ -1411,41 +1525,42 @@ export class TransferEngine {
                 timer = setTimeout(() => {
                   this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
                   resolve();
-                }, 40);
+                }, 35);
                 this.dataChannel?.addEventListener('bufferedamountlow', onLow);
               });
             }
 
-            try {
-              if (this.dataChannel && this.dataChannel.readyState === 'open') {
-                this.dataChannel.send(packet.buffer);
-                this.lastPeerHeartbeat = Date.now();
-              } else {
-                throw new Error('DataChannel closed mid-stream');
-              }
-            } catch (dcErr) {
-              console.warn('[WebRTC] DataChannel send failed, falling back to relay chunk:', dcErr);
-              // Fallback to WebSocket or Cloud Relay so no chunk is ever dropped!
-              if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                this.ws.send(packet.buffer);
-              } else if (this.cloudClient) {
-                let binary = '';
-                const len = chunkPayload.byteLength;
-                for (let i = 0; i < len; i++) {
-                  binary += String.fromCharCode(chunkPayload[i]);
+            // Resilient send loop with direct retry on DataChannel (never divert binary chunks to MQTT)
+            let sent = false;
+            let retryCount = 0;
+            while (!sent && retryCount < 30) {
+              if (this.cancelledTransfers.has(fileId)) break;
+              try {
+                if (this.dataChannel && this.dataChannel.readyState === 'open') {
+                  this.dataChannel.send(packet.buffer);
+                  sent = true;
+                  this.lastPeerHeartbeat = Date.now();
+                } else {
+                  await new Promise((r) => setTimeout(r, 80));
+                  retryCount++;
                 }
-                this.sendSignaling({
-                  type: 'relay-chunk',
-                  targetPeerId,
-                  fileId,
-                  chunkIndex,
-                  data: btoa(binary),
-                });
-                await new Promise((r) => setTimeout(r, 6));
+              } catch (sendErr) {
+                // Buffer momentarily saturated or backpressure: wait and retry directly on DataChannel
+                retryCount++;
+                await new Promise((r) => setTimeout(r, 30));
               }
             }
+
+            if (!sent && !this.cancelledTransfers.has(fileId)) {
+              throw new Error('DataChannel connection interrupted during transfer.');
+            }
+
+            // Yield every 16 chunks (~512KB) to keep UI and network loop responsive
+            if (chunkIndex % 16 === 0) {
+              await new Promise((r) => setTimeout(r, 2));
+            }
           } else if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            // Direct Raw Binary over WebSocket
+            // Direct Raw Binary over WebSocket (Local network mode)
             while (this.ws && this.ws.bufferedAmount > 2 * 1024 * 1024) {
               await new Promise((r) => setTimeout(r, 10));
             }
@@ -1456,34 +1571,24 @@ export class TransferEngine {
 
             this.ws.send(packet.buffer);
             this.lastPeerHeartbeat = Date.now();
+          } else if (this.cloudClient) {
+            // Small file relay fallback via MQTT (< 5MB)
+            let binary = '';
+            const len = chunkPayload.byteLength;
+            for (let i = 0; i < len; i++) {
+              binary += String.fromCharCode(chunkPayload[i]);
+            }
+            const base64Data = btoa(binary);
+            this.sendSignaling({
+              type: 'relay-chunk',
+              targetPeerId,
+              fileId,
+              chunkIndex,
+              data: base64Data,
+            });
+            await new Promise((r) => setTimeout(r, 12));
           } else {
-            // Wait briefly for WebRTC DataChannel to open, otherwise fallback to Cloud Relay
-            let waited = 0;
-            while ((!this.dataChannel || this.dataChannel.readyState !== 'open') && waited < 20) {
-              await new Promise((r) => setTimeout(r, 100));
-              waited++;
-            }
-            if (this.dataChannel && this.dataChannel.readyState === 'open') {
-              this.dataChannel.send(packet.buffer);
-            } else if (this.cloudClient) {
-              // Convert chunk to base64 and send via Cloud Relay
-              let binary = '';
-              const len = chunkPayload.byteLength;
-              for (let i = 0; i < len; i++) {
-                binary += String.fromCharCode(chunkPayload[i]);
-              }
-              const base64Data = btoa(binary);
-              this.sendSignaling({
-                type: 'relay-chunk',
-                targetPeerId,
-                fileId,
-                chunkIndex,
-                data: base64Data,
-              });
-              await new Promise((r) => setTimeout(r, 8));
-            } else {
-              throw new Error('Connection establish hone ka intezaar karein.');
-            }
+            throw new Error('Connection establish hone ka intezaar karein.');
           }
 
           blockPos += currentChunkLength;

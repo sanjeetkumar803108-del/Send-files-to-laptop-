@@ -57,20 +57,22 @@ export class CloudSignalingClient {
 
   public connect() {
     this.isDestroyed = false;
+    this.brokerIndex = 0; // Always start with primary reliable broker
     this.initClient(this.currentBroker);
   }
 
   public reconnect() {
     if (this.isDestroyed) return;
+    this.brokerIndex = 0; // Always converge back to primary broker
     if (!this.isConnected || !this.client) {
-      console.log('[CloudSignaling] Reconnecting to broker...');
+      console.log('[CloudSignaling] Reconnecting to primary broker...');
       this.initClient(this.currentBroker);
     } else {
       this.announcePresence();
     }
   }
 
-  private announcePresence() {
+  public announcePresence() {
     this.publishBroadcast({
       type: 'join',
       roomId: this.roomId,
@@ -80,18 +82,21 @@ export class CloudSignalingClient {
     });
   }
 
-  private startDiscoveryAnnouncement() {
+  public startDiscoveryAnnouncement() {
     this.stopDiscoveryAnnouncement();
     this.announceTimer = setInterval(() => {
-      // While we are waiting and have no known peers, keep announcing every 3 seconds so
-      // newly arriving mobile or laptop pairs discover each other instantly
-      if (this.isConnected && !this.isDestroyed && this.knownPeers.size === 0) {
-        this.announcePresence();
+      // Keep announcing presence periodically until at least one peer is discovered
+      if (this.isConnected && !this.isDestroyed) {
+        if (this.knownPeers.size === 0) {
+          this.announcePresence();
+        } else {
+          this.stopDiscoveryAnnouncement();
+        }
       }
-    }, 3000);
+    }, 2500);
   }
 
-  private stopDiscoveryAnnouncement() {
+  public stopDiscoveryAnnouncement() {
     if (this.announceTimer) {
       clearInterval(this.announceTimer);
       this.announceTimer = null;
@@ -176,15 +181,18 @@ export class CloudSignalingClient {
         }
       });
 
+      let consecutiveFailures = 0;
       client.on('error', (err) => {
         console.warn('[CloudSignaling] Connection error:', err);
-        // If broker failed, try alternate broker on next reconnection attempt
-        this.brokerIndex++;
+        consecutiveFailures++;
+        if (consecutiveFailures >= 4) {
+          this.brokerIndex++;
+          consecutiveFailures = 0;
+        }
         this.callbacks.onError(err);
       });
     } catch (err) {
       console.error('[CloudSignaling] Setup failed:', err);
-      this.brokerIndex++;
       this.callbacks.onError(err);
     }
   }
@@ -205,7 +213,9 @@ export class CloudSignalingClient {
           deviceType: msg.deviceType || 'mobile',
         };
 
+        const isNew = !this.knownPeers.has(newPeer.id);
         this.knownPeers.set(newPeer.id, newPeer);
+        this.stopDiscoveryAnnouncement();
 
         // Reply to the new joiner with current peers list
         this.publishPrivate(newPeer.id, {
@@ -222,11 +232,13 @@ export class CloudSignalingClient {
           ],
         });
 
-        // Emit peer-joined locally
-        this.callbacks.onMessage({
-          type: 'peer-joined',
-          peer: newPeer,
-        });
+        // Only emit peer-joined locally if newly discovered
+        if (isNew) {
+          this.callbacks.onMessage({
+            type: 'peer-joined',
+            peer: newPeer,
+          });
+        }
         break;
       }
 
@@ -237,6 +249,9 @@ export class CloudSignalingClient {
             this.knownPeers.set(p.id, p);
           }
         });
+        if (this.knownPeers.size > 0) {
+          this.stopDiscoveryAnnouncement();
+        }
         this.callbacks.onMessage(msg);
         break;
       }
@@ -254,6 +269,9 @@ export class CloudSignalingClient {
       case 'peer-left': {
         this.knownPeers.delete(msg.peerId);
         this.callbacks.onMessage(msg);
+        if (this.knownPeers.size === 0) {
+          this.startDiscoveryAnnouncement();
+        }
         break;
       }
 
