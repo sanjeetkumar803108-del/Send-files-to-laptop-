@@ -1,7 +1,7 @@
-u8nmimport tailwindcss from '@tailwindcss/vite';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import from 'os';
+import os from 'os';
 import { defineConfig, type Plugin } from 'vite';
 import { setupSignalingServer } from './src/server/signaling.ts';
 
