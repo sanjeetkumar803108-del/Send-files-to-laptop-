@@ -108,16 +108,7 @@ export default function App() {
         }
       },
       (connectedPeers) => {
-        setPeers((prev) => {
-          if (prev.length === 0 && connectedPeers.length === 0) return prev;
-          if (
-            prev.length === connectedPeers.length &&
-            prev.every((p, i) => p.id === connectedPeers[i]?.id && p.name === connectedPeers[i]?.name)
-          ) {
-            return prev;
-          }
-          return connectedPeers;
-        });
+        setPeers([...connectedPeers]);
       },
       (items) => {
         setTransfers((prev) => {

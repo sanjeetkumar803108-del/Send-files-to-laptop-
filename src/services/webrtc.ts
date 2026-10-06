@@ -313,19 +313,26 @@ export class TransferEngine {
       // Send ping over DataChannel if direct P2P
       if (this.dataChannel && this.dataChannel.readyState === 'open') {
         try {
-          this.dataChannel.send(JSON.stringify({ type: 'hb-ping' }));
+          this.dataChannel.send(
+            JSON.stringify({
+              type: 'hb-ping',
+              peer: { id: this.peerId, name: this.deviceName, deviceType: this.deviceType },
+            })
+          );
         } catch {}
       } else if (this.connectedPeers.length > 0) {
         this.sendSignaling({
           type: 'relay-text',
           targetPeerId: this.connectedPeers[0].id,
           text: '__HB__',
+          senderName: this.deviceName,
+          deviceType: this.deviceType,
           isHeartbeat: true,
         });
       }
 
-      // If peer stopped responding for more than 16 seconds, clear stale connection
-      if (now - this.lastPeerHeartbeat > 16000) {
+      // If peer stopped responding for more than 25 seconds, clear stale connection
+      if (now - this.lastPeerHeartbeat > 25000) {
         console.warn('[Heartbeat] Peer heartbeat timed out');
         this.connectedPeers = [];
         this.onPeersChange?.([]);
@@ -589,12 +596,14 @@ export class TransferEngine {
       }
 
       case 'signal': {
+        this.ensurePeer(msg.fromPeerId);
         this.handlePeerSignal(msg.fromPeerId, msg.signal);
         break;
       }
 
       // --- Fallback Relay Message Handlers ---
       case 'relay-meta': {
+        this.ensurePeer(msg.fromPeerId, msg.senderName);
         this.handleIncomingFileHeader(msg.fileId, msg.name, msg.size, msg.mimeType, msg.totalChunks, this.getPeerName(msg.fromPeerId));
         break;
       }
@@ -610,6 +619,7 @@ export class TransferEngine {
       }
 
       case 'relay-text': {
+        this.ensurePeer(msg.fromPeerId, msg.senderName, msg.deviceType);
         if (msg.isHeaderAck) {
           this.lastPeerHeartbeat = Date.now();
           break;
@@ -792,6 +802,20 @@ export class TransferEngine {
       if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
       this.cloudClient?.stopDiscoveryAnnouncement();
       this.setMode('direct_p2p');
+      this.ensurePeer(targetPeerId);
+
+      // Exchange device profile over direct DataChannel so both devices show exact name and type immediately
+      try {
+        channel.send(
+          JSON.stringify({
+            type: 'peer-info',
+            id: this.peerId,
+            name: this.deviceName,
+            deviceType: this.deviceType,
+          })
+        );
+      } catch {}
+
       console.log('⚡ Direct P2P DataChannel opened successfully');
     };
 
@@ -921,17 +945,31 @@ export class TransferEngine {
       case 'file-cancel':
         this.cancelIncomingTransfer(msg.fileId);
         break;
+      case 'peer-info':
+        this.ensurePeer(msg.id, msg.name, msg.deviceType);
+        break;
       case 'header-ack':
       case 'transfer-ack':
         this.lastPeerHeartbeat = Date.now();
         break;
       case 'hb-ping':
+        if (msg.peer) {
+          this.ensurePeer(msg.peer.id, msg.peer.name, msg.peer.deviceType);
+        }
         try {
-          this.dataChannel?.send(JSON.stringify({ type: 'hb-pong' }));
-          this.lastPeerHeartbeat = Date.now();
+          this.dataChannel?.send(
+            JSON.stringify({
+              type: 'hb-pong',
+              peer: { id: this.peerId, name: this.deviceName, deviceType: this.deviceType },
+            })
+          );
         } catch {}
+        this.lastPeerHeartbeat = Date.now();
         break;
       case 'hb-pong':
+        if (msg.peer) {
+          this.ensurePeer(msg.peer.id, msg.peer.name, msg.peer.deviceType);
+        }
         this.lastPeerHeartbeat = Date.now();
         break;
       case 'text-snippet': {
@@ -1694,6 +1732,35 @@ export class TransferEngine {
         targetPeerId: peerId,
         text,
       });
+    }
+  }
+
+  public ensurePeer(peerId: string, name?: string, deviceType?: 'mobile' | 'laptop') {
+    if (!peerId || peerId === this.peerId) return;
+    const existing = this.connectedPeers.find((p) => p.id === peerId);
+    if (!existing) {
+      const defaultName = name || (this.deviceType === 'mobile' ? 'Laptop' : 'Mobile');
+      const defaultType = deviceType || (this.deviceType === 'mobile' ? 'laptop' : 'mobile');
+      const newPeer: PeerDevice = {
+        id: peerId,
+        name: defaultName,
+        deviceType: defaultType,
+      };
+      this.connectedPeers = [...this.connectedPeers, newPeer];
+      this.onPeersChange?.(this.connectedPeers);
+    } else {
+      let updated = false;
+      if (name && existing.name !== name && name !== 'Connected Device' && name !== 'Laptop' && name !== 'Mobile') {
+        existing.name = name;
+        updated = true;
+      }
+      if (deviceType && existing.deviceType !== deviceType) {
+        existing.deviceType = deviceType;
+        updated = true;
+      }
+      if (updated) {
+        this.onPeersChange?.([...this.connectedPeers]);
+      }
     }
   }
 

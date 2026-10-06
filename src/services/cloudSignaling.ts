@@ -217,8 +217,8 @@ export class CloudSignalingClient {
         this.knownPeers.set(newPeer.id, newPeer);
         this.stopDiscoveryAnnouncement();
 
-        // Reply to the new joiner with current peers list
-        this.publishPrivate(newPeer.id, {
+        // Reply to the new joiner with current peers list (both private and broadcast for 100% receipt)
+        const joinedPayload = {
           type: 'joined',
           yourPeerId: newPeer.id,
           roomId: this.roomId,
@@ -230,7 +230,10 @@ export class CloudSignalingClient {
               deviceType: this.deviceType,
             },
           ],
-        });
+        };
+
+        this.publishPrivate(newPeer.id, joinedPayload);
+        this.publishBroadcast(joinedPayload);
 
         // Only emit peer-joined locally if newly discovered
         if (isNew) {
