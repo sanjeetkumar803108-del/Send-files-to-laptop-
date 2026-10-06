@@ -12,6 +12,7 @@ import { QRScannerModal } from './components/QRScannerModal';
 import { HotspotGuideModal } from './components/HotspotGuideModal';
 import { FilePreviewModal } from './components/FilePreviewModal';
 import { LaptopPairingHero } from './components/LaptopPairingHero';
+import { ServerSettingsModal } from './components/ServerSettingsModal';
 import { Wifi, AlertCircle, ShieldCheck, CheckCircle2, Laptop, Copy, Check, Camera, Share2 } from 'lucide-react';
 
 export default function App() {
@@ -54,10 +55,13 @@ export default function App() {
   });
 
   // UI state
-  const lang: 'en' = 'en';
+  const [lang] = useState<'en' | 'hi'>('en');
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isServerModalOpen, setIsServerModalOpen] = useState(false);
+  const [signalingStatus, setSignalingStatus] = useState<'connected' | 'connecting' | 'disconnected'>('disconnected');
+  const [signalingUrl, setSignalingUrl] = useState<string>('');
   const [previewItem, setPreviewItem] = useState<TransferProgress | null>(null);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [copiedAppUrl, setCopiedAppUrl] = useState(false);
@@ -75,8 +79,12 @@ export default function App() {
 
   // Initialize and synchronize TransferEngine
   useEffect(() => {
-    // If URL has join parameter and opened on mobile, show quick confirmation
     if (typeof window !== 'undefined') {
+      const savedSig = localStorage.getItem('hotspot_drop_signaling_url');
+      if (savedSig && savedSig.includes('vercel.app')) {
+        localStorage.removeItem('hotspot_drop_signaling_url');
+      }
+
       const params = new URLSearchParams(window.location.search);
       if (params.get('join') === '1') {
         showToast(
@@ -126,6 +134,10 @@ export default function App() {
       },
       (fileName, reason) => {
         showToast(`❌ ${fileName}: ${reason}`, 'error');
+      },
+      (status, url) => {
+        setSignalingStatus(status);
+        setSignalingUrl(url);
       }
     );
 
@@ -193,20 +205,6 @@ export default function App() {
       return false;
     }
 
-    // Check if room has an active host on the signaling server
-    if (engineRef.current) {
-      const res = await engineRef.current.checkRoom(cleanPin);
-      if (!res.isValid) {
-        showToast(
-          lang === 'hi'
-            ? '❌ Galat PIN! Is PIN se koi laptop connected nahi hai.'
-            : '❌ Wrong PIN! No active laptop found with this PIN.',
-          'error'
-        );
-        return false;
-      }
-    }
-
     setRoomId(cleanPin);
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('hotspot_drop_room', cleanPin);
@@ -215,10 +213,16 @@ export default function App() {
       window.history.replaceState({}, '', url.toString());
     }
     showToast(
-      lang === 'hi' ? 'Sahi PIN! Laptop se connect ho rahe hain...' : 'Valid PIN! Connecting to laptop...',
+      lang === 'hi' ? 'Sahi PIN! Laptop se connect ho rahe hain...' : 'Connecting to room ' + cleanPin + '...',
       'success'
     );
     return true;
+  };
+
+  const handleSaveServerUrl = (url: string) => {
+    setSignalingUrl(url);
+    engineRef.current?.setSignalingUrl(url);
+    showToast(url ? 'Signaling server updated!' : 'Signaling server reset to default', 'info');
   };
 
   const handleScanSuccess = (scannedText: string) => {
@@ -238,6 +242,23 @@ export default function App() {
           const anyMatch = scannedText.match(/\d{6}/);
           if (anyMatch) targetPin = anyMatch[0];
         }
+      }
+
+      // Check if QR code contains a custom signaling server URL (?sig=... or ?server=...)
+      const sigMatch = scannedText.match(/[?&](?:sig|server)=([^&]+)/i);
+      let detectedSigUrl = '';
+      if (sigMatch && sigMatch[1]) {
+        try {
+          detectedSigUrl = decodeURIComponent(sigMatch[1]).trim();
+        } catch {}
+      }
+
+      // Only configure if explicitly ws:// or wss:// and NOT a vercel.app static domain
+      if (detectedSigUrl && !detectedSigUrl.includes('vercel.app') && (detectedSigUrl.startsWith('ws://') || detectedSigUrl.startsWith('wss://'))) {
+        localStorage.setItem('hotspot_drop_signaling_url', detectedSigUrl);
+        setSignalingUrl(detectedSigUrl);
+        engineRef.current?.setSignalingUrl(detectedSigUrl);
+        showToast('Custom server configured from QR!', 'info');
       }
 
       if (targetPin && /^\d{6}$/.test(targetPin)) {
@@ -383,30 +404,33 @@ export default function App() {
   const currentOrigin = getPublicAppUrl();
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#F5F1E8] text-slate-900 flex flex-col font-sans selection:bg-[#185ADB] selection:text-white relative">
-      {/* Ambient Glassmorphic Mesh Glows - Hardware Accelerated to prevent flickering */}
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#070A12] text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative">
+      {/* Ambient Glassmorphic Aurora Mesh Glows - Hardware Accelerated */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10 transform-gpu will-change-transform">
-        <div className="absolute top-[-10%] left-[-10%] w-[55vw] h-[55vw] rounded-full bg-gradient-to-br from-[#185ADB]/12 via-[#185ADB]/6 to-transparent blur-[70px] transform-gpu" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[55vw] h-[55vw] rounded-full bg-gradient-to-tl from-[#FF8A3D]/15 via-[#FF8A3D]/6 to-transparent blur-[70px] transform-gpu" />
-        <div className="absolute top-[35%] right-[10%] w-[40vw] h-[40vw] rounded-full bg-gradient-to-tr from-[#185ADB]/10 to-[#FF8A3D]/10 blur-[60px] transform-gpu" />
+        {/* Aurora Orb 1: Electric Blue / Cyan */}
+        <div className="absolute top-[-15%] left-[-10%] w-[60vw] h-[60vw] rounded-full bg-gradient-to-br from-blue-600/25 via-cyan-500/15 to-transparent blur-[90px] animate-aurora-1 transform-gpu" />
+        {/* Aurora Orb 2: Neon Purple / Indigo */}
+        <div className="absolute bottom-[-15%] right-[-10%] w-[65vw] h-[65vw] rounded-full bg-gradient-to-tl from-indigo-600/30 via-purple-600/20 to-transparent blur-[100px] animate-aurora-2 transform-gpu" />
+        {/* Aurora Orb 3: Radiant Amber / Coral Spark */}
+        <div className="absolute top-[35%] right-[5%] w-[45vw] h-[45vw] rounded-full bg-gradient-to-tr from-cyan-500/15 via-blue-500/15 to-amber-500/10 blur-[85px] animate-aurora-3 transform-gpu" />
       </div>
 
-      {/* Toast Notification */}
+      {/* Toast Notification - Glass Pill */}
       {toastMessage && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200 max-w-[92vw]">
-          <div className={`px-4 py-2.5 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-semibold backdrop-blur-xl ${
+          <div className={`px-4 py-2.5 rounded-2xl shadow-2xl border flex items-center gap-2.5 text-xs font-semibold backdrop-blur-2xl ${
             toastMessage.type === 'success'
-              ? 'bg-[#FAF8F5]/95 text-emerald-800 border-emerald-300 shadow-emerald-500/10'
+              ? 'bg-emerald-950/70 text-emerald-200 border-emerald-500/30 shadow-emerald-500/20'
               : toastMessage.type === 'error'
-              ? 'bg-[#FAF8F5]/95 text-rose-700 border-rose-300 shadow-rose-500/15 ring-1 ring-rose-200'
-              : 'bg-[#FAF8F5]/95 text-[#185ADB] border-[#D8E5FB] shadow-[#185ADB]/10'
+              ? 'bg-rose-950/70 text-rose-200 border-rose-500/30 shadow-rose-500/25'
+              : 'glass-modal text-blue-200 border-blue-400/30 shadow-blue-500/20'
           }`}>
             {toastMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             ) : toastMessage.type === 'error' ? (
-              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-[#185ADB] shrink-0" />
+              <AlertCircle className="w-4 h-4 text-blue-400 shrink-0" />
             )}
             <span className="truncate max-w-[260px] xs:max-w-xs sm:max-w-md">{toastMessage.text}</span>
           </div>
@@ -419,9 +443,11 @@ export default function App() {
         connectionMode={connectionMode}
         connectedCount={peers.length}
         deviceType={deviceType}
+        signalingStatus={signalingStatus}
         onOpenQR={() => setIsQrOpen(true)}
         onOpenScanner={() => setIsScannerOpen(true)}
         onOpenGuide={() => setIsGuideOpen(true)}
+        onOpenServerSettings={() => setIsServerModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -431,25 +457,25 @@ export default function App() {
           <LaptopPairingHero roomId={roomId} lang={lang} />
         )}
 
-        {/* Laptop Web Link - Cream Linen card with Cobalt button */}
+        {/* Laptop Web Link - Translucent Glass Card */}
         {!isPeerConnected && deviceType === 'mobile' && (
-          <div className="w-full bg-[#FAF8F5]/90 backdrop-blur-2xl border border-[#E8E0D1] rounded-2xl p-3 sm:p-3.5 shadow-[0_10px_35px_rgba(24,90,219,0.03)] flex flex-col sm:flex-row items-center justify-between gap-2.5">
+          <div className="w-full glass-panel rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row items-center justify-between gap-2.5 transition-all">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-[#EEF4FD] text-[#185ADB] border border-[#D8E5FB] shrink-0">
+              <div className="p-2 rounded-xl bg-blue-500/15 text-blue-400 border border-blue-400/25 shrink-0 shadow-inner">
                 <Laptop className="w-4 h-4" />
               </div>
-              <span className="text-xs sm:text-sm font-bold text-slate-800">
+              <span className="text-xs sm:text-sm font-bold text-slate-200">
                 Laptop
               </span>
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto min-w-0">
-              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-white border border-[#E8E0D1] font-mono text-xs text-slate-700 overflow-x-auto whitespace-nowrap scrollbar-thin select-all min-w-0 max-w-full sm:max-w-xs">
+              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl glass-input font-mono text-xs text-slate-300 overflow-x-auto whitespace-nowrap scrollbar-thin select-all min-w-0 max-w-full sm:max-w-xs">
                 <span>{currentOrigin}</span>
               </div>
               <button
                 onClick={copyAppUrl}
-                className="px-3 py-1.5 bg-[#185ADB] hover:bg-[#1246AB] text-white text-xs font-semibold rounded-xl shadow-xs shrink-0 transition-colors flex items-center gap-1"
+                className="px-3 py-1.5 glass-btn-primary text-xs font-semibold rounded-xl shrink-0 flex items-center gap-1"
                 title="Copy Link"
               >
                 <Copy className="w-3.5 h-3.5" />
@@ -457,7 +483,7 @@ export default function App() {
               </button>
               <button
                 onClick={shareAppUrl}
-                className="px-3 py-1.5 bg-[#FF8A3D] hover:bg-[#E6762B] text-white text-xs font-semibold rounded-xl shadow-xs shrink-0 transition-colors flex items-center gap-1"
+                className="px-3 py-1.5 glass-btn-accent text-xs font-semibold rounded-xl shrink-0 flex items-center gap-1"
                 title="Share Link"
               >
                 <Share2 className="w-3.5 h-3.5" />
@@ -529,6 +555,14 @@ export default function App() {
         isOpen={isGuideOpen}
         onClose={() => setIsGuideOpen(false)}
         lang={lang}
+      />
+
+      <ServerSettingsModal
+        isOpen={isServerModalOpen}
+        onClose={() => setIsServerModalOpen(false)}
+        currentUrl={signalingUrl}
+        signalingStatus={signalingStatus}
+        onSaveUrl={handleSaveServerUrl}
       />
 
       {previewItem && (

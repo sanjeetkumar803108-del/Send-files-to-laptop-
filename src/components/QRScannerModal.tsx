@@ -42,7 +42,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         scannerRef.current = html5QrCode;
 
         const qrConfig = {
-          fps: 25, // Ultra-fast scan rate (40ms per frame)
+          fps: 25,
           qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
             const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
             const edgeSize = Math.max(Math.floor(minEdge * 0.72), 180);
@@ -53,7 +53,6 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
         const handleSuccess = (decodedText: string) => {
           if (!isMounted) return;
-          // Haptic vibration feedback on successful scan
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
             try {
               navigator.vibrate([40, 50, 40]);
@@ -66,13 +65,12 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           onClose();
         };
 
-        // Attempt 1: Start with back camera (environment)
         try {
           await html5QrCode.start(
             { facingMode: 'environment' },
             qrConfig,
             handleSuccess,
-            () => {} // Frame miss
+            () => {}
           );
           if (isMounted) {
             setIsScanning(true);
@@ -83,7 +81,6 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           console.warn('Direct environment facingMode failed, falling back to camera list:', envErr);
         }
 
-        // Attempt 2: Enumerate cameras and pick back camera or first camera
         const devices = await Html5Qrcode.getCameras();
         if (devices && devices.length > 0) {
           const backCam = devices.find((d) =>
@@ -141,52 +138,52 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-sm bg-[#FAF8F5]/98 border border-[#E8E0D1] rounded-3xl shadow-2xl p-5 text-slate-800 overflow-hidden text-center backdrop-blur-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-2xl animate-in fade-in duration-200">
+      <div className="relative w-full max-w-sm glass-modal rounded-3xl p-5 text-slate-100 overflow-hidden text-center">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-3.5 right-3.5 p-2 text-slate-400 hover:text-slate-700 rounded-full hover:bg-[#E8E0D1]/50 transition-colors z-10"
+          className="absolute top-3.5 right-3.5 p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors z-10"
         >
           <X className="w-5 h-5" />
         </button>
 
         <div className="flex items-center justify-center gap-2 mb-2">
-          <div className="p-2 bg-[#EEF4FD] text-[#185ADB] rounded-xl border border-[#185ADB]/20 shadow-inner">
+          <div className="p-2 bg-blue-500/15 text-cyan-300 rounded-xl border border-blue-400/25 shadow-inner">
             <Camera className="w-5 h-5" />
           </div>
-          <h3 className="text-base font-bold text-slate-900">
+          <h3 className="text-base font-bold text-white">
             {lang === 'hi' ? 'Laptop Screen Scan Karein' : 'Scan Laptop QR Code'}
           </h3>
         </div>
 
-        <p className="text-xs text-slate-500 mb-4 max-w-xs mx-auto">
+        <p className="text-xs text-slate-300 mb-4 max-w-xs mx-auto">
           {lang === 'hi'
             ? 'Laptop screen par dikh rahe QR Code ke samne camera layein.'
-            : 'Point your camera towards the QR code on your laptop.'}
+            : 'Point your camera towards the QR code on your laptop screen.'}
         </p>
 
         {/* Video stream container */}
-        <div className="relative w-full aspect-square bg-slate-950 rounded-2xl overflow-hidden border border-[#E8E0D1] flex items-center justify-center shadow-inner">
+        <div className="relative w-full aspect-square bg-slate-950/80 rounded-2xl overflow-hidden border border-white/15 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.6)]">
           <div id={scannerContainerId} className="w-full h-full" />
 
           {/* Animated Scanner Laser & Corner Overlay */}
           {isScanning && !error && (
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="relative w-48 h-48 border-2 border-[#185ADB]/50 rounded-2xl overflow-hidden shadow-[0_0_15px_rgba(24,90,219,0.2)]">
-                {/* Laser scan line in Tangerine */}
-                <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-[#FF8A3D] to-transparent shadow-[0_0_8px_#FF8A3D] animate-bounce" />
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-900/80 backdrop-blur-xs text-[10px] text-white flex items-center gap-1">
-                  <Zap className="w-2.5 h-2.5 text-[#FF8A3D]" />
-                  <span>Scanning</span>
+              <div className="relative w-48 h-48 border-2 border-cyan-400/60 rounded-2xl overflow-hidden shadow-[0_0_20px_rgba(6,182,212,0.3)]">
+                {/* Laser scan line in Cyan */}
+                <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#38bdf8] animate-bounce" />
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full glass-modal text-[10px] text-cyan-200 flex items-center gap-1 shadow-md">
+                  <Zap className="w-2.5 h-2.5 text-amber-400" />
+                  <span>Scanning...</span>
                 </div>
               </div>
             </div>
           )}
 
           {!isScanning && !error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-2 bg-slate-950">
-              <RefreshCw className="w-6 h-6 animate-spin text-[#185ADB]" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-2 bg-slate-950/90">
+              <RefreshCw className="w-6 h-6 animate-spin text-cyan-400" />
               <span className="text-xs">{lang === 'hi' ? 'Camera shuru ho raha hai...' : 'Starting camera...'}</span>
             </div>
           )}
@@ -202,7 +199,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         <div className="mt-4">
           <button
             onClick={onClose}
-            className="w-full py-2 bg-[#F5F1E8] hover:bg-[#E8E0D1] text-slate-700 text-xs font-semibold rounded-xl border border-[#E8E0D1] transition-colors shadow-2xs"
+            className="w-full py-2.5 glass-btn-secondary text-xs font-semibold rounded-xl"
           >
             Close
           </button>

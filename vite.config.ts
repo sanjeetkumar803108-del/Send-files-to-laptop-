@@ -1,9 +1,9 @@
-import tailwindcss from '@tailwindcss/vite';
+u8nmimport tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import os from 'os';
+import from 'os';
 import { defineConfig, type Plugin } from 'vite';
-import { setupSignalingServer } from './src/server/signaling';
+import { setupSignalingServer } from './src/server/signaling.ts';
 
 function getLocalIpAddresses(): string[] {
   const interfaces = os.networkInterfaces();
@@ -42,6 +42,7 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        mqtt: path.resolve(__dirname, 'node_modules/mqtt/dist/mqtt.esm.js'),
       },
     },
     server: {

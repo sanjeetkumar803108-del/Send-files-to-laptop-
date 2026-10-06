@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">HotSpotDrop</string>
+    <string name="title_activity_main">HotSpotDrop</string>
+    <string name="package_name">com.hotspotdrop.app</string>
+    <string name="custom_url_scheme">com.hotspotdrop.app</string>
+</resources>

@@ -1,5 +1,7 @@
 import { PeerDevice, ConnectionMode, TransferProgress, SharedSnippet } from '../types/transfer';
 import { playStartChime, playSuccessChime } from '../utils/audio';
+import { resolveSignalingUrl, isNativePlatform } from '../utils/format';
+import { CloudSignalingClient } from './cloudSignaling';
 
 const CHUNK_SIZE = 64 * 1024 - 16; // 65,520 B (+12 B header = 65,532 B, perfectly fits within Android WebRTC 64KB SCTP limit)
 const READ_BLOCK_SIZE = 2 * 1024 * 1024; // 2 MB fast disk read block
@@ -11,6 +13,7 @@ export type PeersCallback = (peers: PeerDevice[]) => void;
 export type ProgressCallback = (items: TransferProgress[]) => void;
 export type SnippetCallback = (snippet: SharedSnippet) => void;
 export type TransferErrorCallback = (fileName: string, reason: string) => void;
+export type SignalingStatusCallback = (status: 'connected' | 'connecting' | 'disconnected', url: string) => void;
 
 interface ActiveReceivingFile {
   fileId: string;
@@ -32,8 +35,23 @@ interface ActiveReceivingFile {
 
 export class TransferEngine {
   private ws: WebSocket | null = null;
+  private cloudClient: CloudSignalingClient | null = null;
   private peerConnection: RTCPeerConnection | null = null;
   private dataChannel: RTCDataChannel | null = null;
+
+  private sendSignaling(msg: any) {
+    if (this.cloudClient) {
+      this.cloudClient.send(msg);
+      return;
+    }
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify(msg));
+      } catch (err) {
+        console.warn('Error sending WebSocket signaling:', err);
+      }
+    }
+  }
   
   public roomId: string;
   public peerId: string;
@@ -51,6 +69,11 @@ export class TransferEngine {
   private sendQueue: { fileId: string; file: File; targetPeerId: string }[] = [];
   private isSending = false;
   private cancelledTransfers = new Set<string>();
+
+  // Signaling state
+  private currentSignalingUrl = '';
+  private signalingStatus: 'connected' | 'connecting' | 'disconnected' = 'disconnected';
+  private onSignalingStatusChange?: SignalingStatusCallback;
 
   // Callbacks
   private onConnectionChange?: ConnectionCallback;
@@ -82,6 +105,34 @@ export class TransferEngine {
     this.deviceType = deviceType;
   }
 
+  public setSignalingUrl(newUrl: string) {
+    const trimmed = newUrl.trim();
+    if (this.currentSignalingUrl === trimmed && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      return;
+    }
+    this.currentSignalingUrl = trimmed;
+    if (typeof window !== 'undefined' && trimmed) {
+      localStorage.setItem('hotspot_drop_signaling_url', trimmed);
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      try { this.ws.close(); } catch {}
+      this.ws = null;
+    }
+    this.connectSignaling();
+  }
+
+  public getSignalingUrl(): string {
+    return this.currentSignalingUrl || resolveSignalingUrl();
+  }
+
+  public getSignalingStatus(): 'connected' | 'connecting' | 'disconnected' {
+    return this.signalingStatus;
+  }
+
   private handleVisibilityChange = () => {
     if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
       console.log('App returned to foreground, verifying connection health...');
@@ -103,13 +154,15 @@ export class TransferEngine {
     onPeersChange: PeersCallback,
     onProgressChange: ProgressCallback,
     onSnippetReceived: SnippetCallback,
-    onTransferError?: TransferErrorCallback
+    onTransferError?: TransferErrorCallback,
+    onSignalingStatusChange?: SignalingStatusCallback
   ) {
     this.onConnectionChange = onConnectionChange;
     this.onPeersChange = onPeersChange;
     this.onProgressChange = onProgressChange;
     this.onSnippetReceived = onSnippetReceived;
     this.onTransferError = onTransferError;
+    this.onSignalingStatusChange = onSignalingStatusChange;
   }
 
   public setAutoDownload(enabled: boolean) {
@@ -117,6 +170,9 @@ export class TransferEngine {
   }
 
   public checkRoom(targetRoomId: string): Promise<{ isValid: boolean; peerCount: number }> {
+    if (this.cloudClient) {
+      return this.cloudClient.checkRoom(targetRoomId);
+    }
     return new Promise((resolve) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         return resolve({ isValid: true, peerCount: 1 });
@@ -170,6 +226,10 @@ export class TransferEngine {
       try { this.peerConnection.close(); } catch {}
       this.peerConnection = null;
     }
+    if (this.cloudClient) {
+      try { this.cloudClient.disconnect(); } catch {}
+      this.cloudClient = null;
+    }
     if (this.ws) {
       try { this.ws.close(); } catch {}
       this.ws = null;
@@ -185,6 +245,24 @@ export class TransferEngine {
       return;
     }
 
+    if (this.cloudClient) {
+      this.cloudClient.reconnect();
+      this.sendSignaling({
+        type: 'join',
+        roomId: this.roomId,
+        peerId: this.peerId,
+        name: this.deviceName,
+        deviceType: this.deviceType,
+      });
+
+      const isChannelOpen = this.dataChannel && this.dataChannel.readyState === 'open';
+      if (!isChannelOpen && this.connectedPeers.length > 0) {
+        console.log('[Recovery] Cloud DataChannel not open, re-initiating WebRTC handshake...');
+        this.initiatePeerConnection(this.connectedPeers[0].id, this.isInitiator);
+      }
+      return;
+    }
+
     // 1. Re-open WebSocket if disconnected
     if (!this.ws || this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) {
       console.log('[Recovery] WebSocket closed, reconnecting now...');
@@ -194,15 +272,13 @@ export class TransferEngine {
 
     // 2. Re-register presence in room if socket is open
     if (this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(
-        JSON.stringify({
-          type: 'join',
-          roomId: this.roomId,
-          peerId: this.peerId,
-          name: this.deviceName,
-          deviceType: this.deviceType,
-        })
-      );
+      this.sendSignaling({
+        type: 'join',
+        roomId: this.roomId,
+        peerId: this.peerId,
+        name: this.deviceName,
+        deviceType: this.deviceType,
+      });
     }
 
     // 3. Check WebRTC DataChannel liveness
@@ -226,17 +302,13 @@ export class TransferEngine {
         try {
           this.dataChannel.send(JSON.stringify({ type: 'hb-ping' }));
         } catch {}
-      } else if (this.ws && this.ws.readyState === WebSocket.OPEN && this.connectedPeers.length > 0) {
-        try {
-          this.ws.send(
-            JSON.stringify({
-              type: 'relay-text',
-              targetPeerId: this.connectedPeers[0].id,
-              text: '__HB__',
-              isHeartbeat: true,
-            })
-          );
-        } catch {}
+      } else if (this.connectedPeers.length > 0) {
+        this.sendSignaling({
+          type: 'relay-text',
+          targetPeerId: this.connectedPeers[0].id,
+          text: '__HB__',
+          isHeartbeat: true,
+        });
       }
 
       // If peer stopped responding for more than 7 seconds, clear stale connection immediately!
@@ -247,17 +319,13 @@ export class TransferEngine {
         this.setMode('connecting');
 
         // Refresh room registry on signaling server
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.send(
-            JSON.stringify({
-              type: 'join',
-              roomId: this.roomId,
-              peerId: this.peerId,
-              name: this.deviceName,
-              deviceType: this.deviceType,
-            })
-          );
-        }
+        this.sendSignaling({
+          type: 'join',
+          roomId: this.roomId,
+          peerId: this.peerId,
+          name: this.deviceName,
+          deviceType: this.deviceType,
+        });
       }
     }, 3000);
   }
@@ -281,32 +349,88 @@ export class TransferEngine {
     this.onProgressChange?.(list);
   }
 
-  // --- WebSocket Signaling Server Connection ---
+  // --- Signaling Connection (WebSocket or Cloud Relay) ---
   private connectSignaling() {
-    try {
-      const isHttps = window.location.protocol === 'https:';
-      const wsProtocol = isHttps ? 'wss:' : 'ws:';
-      const customWs = (import.meta.env.VITE_SIGNALING_URL as string | undefined)?.trim();
-      const wsUrl = customWs || `${wsProtocol}//${window.location.host}/ws`;
+    // Teardown existing connections
+    if (this.cloudClient) {
+      try { this.cloudClient.disconnect(); } catch {}
+      this.cloudClient = null;
+    }
+    if (this.ws) {
+      try { this.ws.close(); } catch {}
+      this.ws = null;
+    }
 
+    const wsUrl = resolveSignalingUrl(this.currentSignalingUrl);
+    this.currentSignalingUrl = wsUrl;
+
+    // If explicit custom ws:// or wss:// server given (e.g. Render or local IP), use WebSocket
+    if (wsUrl && (wsUrl.startsWith('ws://') || wsUrl.startsWith('wss://'))) {
+      this.connectWebSocket(wsUrl);
+      return;
+    }
+
+    // Default for Vercel and Android APK: Connect via Cloud Public Relay (zero configuration needed)
+    this.connectCloudRelay();
+  }
+
+  private connectCloudRelay() {
+    this.signalingStatus = 'connecting';
+    this.onSignalingStatusChange?.('connecting', 'Cloud Relay (Zero-Config)');
+
+    const client = new CloudSignalingClient(
+      this.roomId,
+      this.peerId,
+      this.deviceName,
+      this.deviceType,
+      {
+        onOpen: () => {
+          console.log('[Signaling] Cloud relay active for room:', this.roomId);
+          this.signalingStatus = 'connected';
+          this.onSignalingStatusChange?.('connected', 'Cloud Relay (Zero-Config)');
+        },
+        onClose: () => {
+          this.signalingStatus = 'disconnected';
+          this.onSignalingStatusChange?.('disconnected', 'Cloud Relay (Zero-Config)');
+        },
+        onError: (err) => {
+          console.warn('[Signaling] Cloud relay error:', err);
+          this.signalingStatus = 'disconnected';
+          this.onSignalingStatusChange?.('disconnected', 'Cloud Relay (Zero-Config)');
+        },
+        onMessage: (msg) => {
+          this.handleSignalingMessage(msg);
+        },
+      }
+    );
+
+    this.cloudClient = client;
+    client.connect();
+  }
+
+  private connectWebSocket(wsUrl: string) {
+    this.signalingStatus = 'connecting';
+    this.onSignalingStatusChange?.('connecting', wsUrl);
+
+    try {
       this.ws = new WebSocket(wsUrl);
       this.ws.binaryType = 'arraybuffer';
 
       this.ws.onopen = () => {
-        // Register peer to room
-        this.ws?.send(
-          JSON.stringify({
-            type: 'join',
-            roomId: this.roomId,
-            peerId: this.peerId,
-            name: this.deviceName,
-            deviceType: this.deviceType,
-          })
-        );
+        console.log('[Signaling] Connected to custom server:', wsUrl);
+        this.signalingStatus = 'connected';
+        this.onSignalingStatusChange?.('connected', wsUrl);
+
+        this.sendSignaling({
+          type: 'join',
+          roomId: this.roomId,
+          peerId: this.peerId,
+          name: this.deviceName,
+          deviceType: this.deviceType,
+        });
       };
 
       this.ws.onmessage = async (event) => {
-        // Raw ultra-fast binary frame received (ArrayBuffer or Blob)
         if (event.data instanceof ArrayBuffer) {
           this.handleIncomingBinaryChunk(event.data);
           return;
@@ -330,7 +454,10 @@ export class TransferEngine {
       };
 
       this.ws.onclose = () => {
-        console.warn('Signaling socket closed');
+        console.warn('Signaling socket closed for:', wsUrl);
+        this.signalingStatus = 'disconnected';
+        this.onSignalingStatusChange?.('disconnected', wsUrl);
+
         if (this.connectionMode !== 'direct_p2p') {
           if (this.connectedPeers.length > 0) {
             this.connectedPeers = [];
@@ -350,7 +477,6 @@ export class TransferEngine {
             this.notifyProgress();
           }
         }
-        // Attempt reconnection cleanly without tight looping
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => {
           if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
@@ -360,10 +486,14 @@ export class TransferEngine {
       };
 
       this.ws.onerror = (err) => {
-        console.warn('Signaling socket error:', err);
+        console.warn('Signaling socket error for:', wsUrl, err);
+        this.signalingStatus = 'disconnected';
+        this.onSignalingStatusChange?.('disconnected', wsUrl);
       };
     } catch (e) {
       console.error('Failed to connect to signaling socket:', e);
+      this.signalingStatus = 'disconnected';
+      this.onSignalingStatusChange?.('disconnected', wsUrl);
       this.connectedPeers = [];
       this.onPeersChange?.([]);
       this.setMode('disconnected');
@@ -456,15 +586,13 @@ export class TransferEngine {
 
         if (msg.isHeartbeat) {
           this.lastPeerHeartbeat = Date.now();
-          if (msg.text === '__HB__' && this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(
-              JSON.stringify({
-                type: 'relay-text',
-                targetPeerId: msg.fromPeerId,
-                text: '__HB_ACK__',
-                isHeartbeat: true,
-              })
-            );
+          if (msg.text === '__HB__') {
+            this.sendSignaling({
+              type: 'relay-text',
+              targetPeerId: msg.fromPeerId,
+              text: '__HB_ACK__',
+              isHeartbeat: true,
+            });
           }
           break;
         }
@@ -508,6 +636,21 @@ export class TransferEngine {
         { urls: 'stun:stun4.l.google.com:19302' },
         { urls: 'stun:stun.cloudflare.com:3478' },
         { urls: 'stun:stun.services.mozilla.com' },
+        {
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelay',
+          credential: 'openrelay',
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443',
+          username: 'openrelay',
+          credential: 'openrelay',
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+          username: 'openrelay',
+          credential: 'openrelay',
+        },
       ],
       iceCandidatePoolSize: 6,
     };
@@ -525,23 +668,33 @@ export class TransferEngine {
     }, 12000);
 
     pc.onicecandidate = (event) => {
-      if (event.candidate && this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(
-          JSON.stringify({
-            type: 'signal',
-            targetPeerId,
-            signal: { candidate: event.candidate },
-          })
-        );
+      if (event.candidate) {
+        this.sendSignaling({
+          type: 'signal',
+          targetPeerId,
+          signal: { candidate: event.candidate },
+        });
       }
     };
 
     pc.oniceconnectionstatechange = () => {
+      console.log('[WebRTC] ICE Connection State:', pc.iceConnectionState);
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
         this.setMode('direct_p2p');
       } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-        // Fallback to relay
+        if (this.connectedPeers.length > 0 && this.connectionMode !== 'direct_p2p') {
+          this.setMode('relay');
+        }
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log('[WebRTC] Peer Connection State:', pc.connectionState);
+      if (pc.connectionState === 'connected') {
+        if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
+        this.setMode('direct_p2p');
+      } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
         if (this.connectedPeers.length > 0 && this.connectionMode !== 'direct_p2p') {
           this.setMode('relay');
         }
@@ -556,31 +709,32 @@ export class TransferEngine {
       this.setupDataChannel(channel, targetPeerId);
 
       const makeOffer = async () => {
+        if (this.isMakingOffer || pc.signalingState !== 'stable') return;
         try {
           this.isMakingOffer = true;
           const offer = await pc.createOffer();
           if (pc.signalingState !== 'stable') return;
           await pc.setLocalDescription(offer);
-          this.ws?.send(
-            JSON.stringify({
-              type: 'signal',
-              targetPeerId,
-              signal: { description: pc.localDescription },
-            })
-          );
+          this.sendSignaling({
+            type: 'signal',
+            targetPeerId,
+            signal: { description: pc.localDescription },
+          });
         } catch (err) {
-          console.error('Error creating offer:', err);
+          console.error('[WebRTC] Error creating offer:', err);
         } finally {
           this.isMakingOffer = false;
         }
       };
 
-      pc.onnegotiationneeded = makeOffer;
-      // Also trigger initial offer creation to guarantee handshake
+      pc.onnegotiationneeded = () => {
+        makeOffer();
+      };
       setTimeout(makeOffer, 80);
     } else {
       // Receiver sets up channel when received
       pc.ondatachannel = (event) => {
+        console.log('[WebRTC] Remote DataChannel received');
         this.setupDataChannel(event.channel, targetPeerId);
       };
     }
@@ -638,12 +792,25 @@ export class TransferEngine {
     try {
       if (signal.description) {
         const description = signal.description;
+        const isPolite = this.peerId < fromPeerId;
         const offerCollision =
           description.type === 'offer' &&
           (this.isMakingOffer || pc.signalingState !== 'stable');
 
-        const ignoreOffer = !this.isInitiator && offerCollision;
-        if (ignoreOffer) return;
+        const ignoreOffer = !isPolite && offerCollision;
+        if (ignoreOffer) {
+          console.warn('[WebRTC] Impolite peer ignoring colliding offer from', fromPeerId);
+          return;
+        }
+
+        if (offerCollision && isPolite) {
+          console.log('[WebRTC] Polite peer rolling back colliding offer for', fromPeerId);
+          try {
+            await pc.setLocalDescription({ type: 'rollback' });
+          } catch (e) {
+            console.warn('[WebRTC] Rollback error (ignoring):', e);
+          }
+        }
 
         this.isSettingRemoteAnswerPending = description.type === 'answer';
         await pc.setRemoteDescription(description);
@@ -664,13 +831,11 @@ export class TransferEngine {
         if (description.type === 'offer') {
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          this.ws?.send(
-            JSON.stringify({
-              type: 'signal',
-              targetPeerId: fromPeerId,
-              signal: { description: pc.localDescription },
-            })
-          );
+          this.sendSignaling({
+            type: 'signal',
+            targetPeerId: fromPeerId,
+            signal: { description: pc.localDescription },
+          });
         }
       } else if (signal.candidate) {
         if (!pc.remoteDescription) {
@@ -807,15 +972,13 @@ export class TransferEngine {
         this.dataChannel.send(JSON.stringify({ type: 'header-ack', fileId }));
       } catch {}
     }
-    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.connectedPeers.length > 0) {
-      try {
-        this.ws.send(JSON.stringify({
-          type: 'relay-text',
-          targetPeerId: this.connectedPeers[0].id,
-          text: `__ACK__:${fileId}`,
-          isHeaderAck: true,
-        }));
-      } catch {}
+    if (this.connectedPeers.length > 0) {
+      this.sendSignaling({
+        type: 'relay-text',
+        targetPeerId: this.connectedPeers[0].id,
+        text: `__ACK__:${fileId}`,
+        isHeaderAck: true,
+      });
     }
 
     // Apply any chunks that arrived early before the header was processed
@@ -990,12 +1153,12 @@ export class TransferEngine {
       // Notify peer
       if (this.dataChannel && this.dataChannel.readyState === 'open') {
         this.dataChannel.send(JSON.stringify({ type: 'file-cancel', fileId }));
-      } else if (this.ws && this.ws.readyState === WebSocket.OPEN && this.connectedPeers.length > 0) {
-        this.ws.send(JSON.stringify({
+      } else if (this.connectedPeers.length > 0) {
+        this.sendSignaling({
           type: 'relay-cancel',
           targetPeerId: this.connectedPeers[0].id,
           fileId,
-        }));
+        });
       }
     }
     const active = this.activeReceiving.get(fileId);
@@ -1038,7 +1201,8 @@ export class TransferEngine {
 
     const isDirectP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
     const isWsOpen = !!(this.ws && this.ws.readyState === WebSocket.OPEN);
-    if (!isDirectP2P && !isWsOpen) {
+    const isCloudOpen = !!(this.cloudClient);
+    if (!isDirectP2P && !isWsOpen && !isCloudOpen) {
       this.checkAndRecoverConnection();
       throw new Error('Connection re-sync ho raha hai, 2 second baad dobara send karein.');
     }
@@ -1156,20 +1320,16 @@ export class TransferEngine {
         totalChunks,
       };
 
-      // Always announce over WebSocket relay-meta so receiver's UI is GUARANTEED to register and display the transfer immediately
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(
-          JSON.stringify({
-            type: 'relay-meta',
-            targetPeerId,
-            fileId,
-            name: file.name,
-            size: file.size,
-            mimeType: file.type || 'application/octet-stream',
-            totalChunks,
-          })
-        );
-      }
+      // Always announce over signaling relay-meta so receiver's UI is GUARANTEED to register and display the transfer immediately
+      this.sendSignaling({
+        type: 'relay-meta',
+        targetPeerId,
+        fileId,
+        name: file.name,
+        size: file.size,
+        mimeType: file.type || 'application/octet-stream',
+        totalChunks,
+      });
 
       // Also announce over DataChannel if open for direct P2P path
       if (isDirectP2P) {
@@ -1247,7 +1407,7 @@ export class TransferEngine {
                 this.ws.send(packet.buffer);
               }
             }
-          } else {
+          } else if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             // Direct Raw Binary over WebSocket (0% Base64 overhead, full wire speed)
             while (this.ws && this.ws.bufferedAmount > 2 * 1024 * 1024) {
               await new Promise((r) => setTimeout(r, 10));
@@ -1258,6 +1418,18 @@ export class TransferEngine {
             }
 
             this.ws.send(packet.buffer);
+          } else {
+            // Wait up to 5 seconds for WebRTC DataChannel to open
+            let waited = 0;
+            while ((!this.dataChannel || this.dataChannel.readyState !== 'open') && waited < 50) {
+              await new Promise((r) => setTimeout(r, 100));
+              waited++;
+            }
+            if (this.dataChannel && this.dataChannel.readyState === 'open') {
+              this.dataChannel.send(packet.buffer);
+            } else {
+              throw new Error('P2P connection establish hone ka intezaar karein.');
+            }
           }
 
           blockPos += currentChunkLength;
@@ -1301,21 +1473,17 @@ export class TransferEngine {
 
         if (this.cancelledTransfers.has(fileId)) return;
 
-        // Send completion signal via both DataChannel and WebSocket
+        // Send completion signal via both DataChannel and signaling relay
         if (this.dataChannel && this.dataChannel.readyState === 'open') {
           try {
             this.dataChannel.send(JSON.stringify({ type: 'file-complete', fileId }));
           } catch {}
         }
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.send(
-            JSON.stringify({
-              type: 'relay-complete',
-              targetPeerId,
-              fileId,
-            })
-          );
-        }
+        this.sendSignaling({
+          type: 'relay-complete',
+          targetPeerId,
+          fileId,
+        });
 
         progress.status = 'completed';
         progress.progressPercent = 100;
@@ -1362,13 +1530,11 @@ export class TransferEngine {
         })
       );
     } else {
-      this.ws?.send(
-        JSON.stringify({
-          type: 'relay-text',
-          targetPeerId: peerId,
-          text,
-        })
-      );
+      this.sendSignaling({
+        type: 'relay-text',
+        targetPeerId: peerId,
+        text,
+      });
     }
   }
 

@@ -36,7 +36,6 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
   onOpenQR,
   onOpenScanner,
   onJoinRoom,
-  lang,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(myDeviceName);
@@ -57,7 +56,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
     const cleanPin = inputPin.replace(/\s+/g, '');
 
     if (cleanPin.length !== 6) {
-      setPinError('Invalid');
+      setPinError('Invalid 6-digit PIN');
       return;
     }
 
@@ -67,14 +66,14 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
     try {
       const res = await onJoinRoom(cleanPin);
       if (res === false) {
-        setPinError('Wrong');
+        setPinError('PIN not found or room expired');
       } else {
         setPinError(null);
         setInputPin('');
         setShowPinInput(false);
       }
     } catch {
-      setPinError('Error');
+      setPinError('Error connecting to room');
     } finally {
       setIsCheckingPin(false);
     }
@@ -92,19 +91,19 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
   const peer = peers[0];
 
   return (
-    <div className="w-full bg-[#FAF8F5]/90 backdrop-blur-2xl border border-[#E8E0D1] rounded-3xl p-4 sm:p-6 shadow-[0_10px_35px_rgba(24,90,219,0.03)]">
+    <div className="w-full glass-panel rounded-3xl p-4 sm:p-6 transition-all">
       {/* Horizontal Device Circular Showcase */}
       <div className="flex items-center justify-between sm:justify-around gap-2 xs:gap-3 sm:gap-6 relative">
         {/* Device 1: Left Circle (This Device) */}
         <div className="relative flex flex-col items-center">
-          <div className="relative w-28 h-28 xs:w-32 xs:h-32 sm:w-40 sm:h-40 rounded-full bg-white border-2 border-[#185ADB] shadow-md shadow-[#185ADB]/10 ring-4 ring-[#185ADB]/10 flex flex-col items-center justify-center p-2 text-center transition-transform hover:scale-[1.02]">
+          <div className="relative w-28 h-28 xs:w-32 xs:h-32 sm:w-40 sm:h-40 rounded-full bg-slate-900/60 backdrop-blur-2xl border-2 border-blue-400/50 shadow-[0_0_30px_rgba(59,130,246,0.25)] ring-4 ring-blue-500/15 flex flex-col items-center justify-center p-2 text-center transition-transform hover:scale-[1.02]">
             {/* Top Badge Tag */}
-            <span className="absolute -top-2.5 px-2.5 py-0.5 rounded-full bg-[#185ADB] text-white text-[9px] sm:text-[10px] font-bold shadow-2xs">
-              This
+            <span className="absolute -top-2.5 px-3 py-0.5 rounded-full glass-btn-primary text-white text-[9px] sm:text-[10px] font-bold shadow-md">
+              THIS DEVICE
             </span>
 
-            {/* Icon */}
-            <div className="p-2 sm:p-2.5 rounded-full bg-[#EEF4FD] text-[#185ADB] border border-[#D8E5FB] mb-1">
+            {/* Icon with glowing backdrop */}
+            <div className="p-2 sm:p-2.5 rounded-full bg-blue-500/20 text-cyan-300 border border-blue-400/30 mb-1 shadow-inner">
               {myDeviceType === 'mobile' ? (
                 <Smartphone className="w-5 h-5 sm:w-6 sm:h-6" />
               ) : (
@@ -119,20 +118,20 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
                   type="text"
                   value={tempName}
                   onChange={(e) => setTempName(e.target.value)}
-                  className="bg-white border border-[#185ADB] rounded px-1.5 py-0.5 text-[11px] text-slate-800 outline-none w-20 text-center font-bold"
+                  className="glass-input rounded px-2 py-0.5 text-[11px] text-white outline-none w-20 text-center font-bold"
                   autoFocus
                   onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
                 />
                 <button
                   onClick={handleSaveName}
-                  className="p-1 rounded-full bg-[#185ADB] text-white hover:bg-[#1246AB]"
+                  className="p-1 rounded-full bg-blue-600 text-white hover:bg-blue-500"
                 >
                   <Check className="w-2.5 h-2.5" />
                 </button>
               </div>
             ) : (
               <div className="flex items-center justify-center gap-1 mt-0.5 max-w-[85px] xs:max-w-[100px] sm:max-w-[125px]">
-                <span className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
+                <span className="text-xs sm:text-sm font-extrabold text-white truncate">
                   {myDeviceName}
                 </span>
                 <button
@@ -140,7 +139,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
                     setTempName(myDeviceName);
                     setIsEditing(true);
                   }}
-                  className="text-slate-400 hover:text-slate-600 transition-colors shrink-0"
+                  className="text-slate-400 hover:text-cyan-300 transition-colors shrink-0"
                   title="Rename"
                 >
                   <Edit2 className="w-2.5 h-2.5" />
@@ -152,7 +151,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
             <button
               onClick={onToggleDeviceType}
               title="Switch"
-              className="mt-1 text-[9px] sm:text-[10px] text-[#FF8A3D] hover:text-[#E66F20] font-bold flex items-center gap-0.5 hover:underline"
+              className="mt-1 text-[9px] sm:text-[10px] text-amber-400 hover:text-amber-300 font-bold flex items-center gap-0.5 transition-colors"
             >
               <ArrowLeftRight className="w-2.5 h-2.5" />
               <span>Switch</span>
@@ -163,26 +162,26 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
         {/* Center Connecting Bridge with Continuous Animation */}
         <div className="flex-1 flex flex-col items-center justify-center relative min-w-[65px] xs:min-w-[85px] sm:min-w-[140px] px-1 sm:px-3">
           {hasPeer ? (
-            /* Continuous Active Connection Animation - Hardware Accelerated & Clamped */
+            /* Continuous Active Connection Animation */
             <div className="w-full flex flex-col items-center justify-center relative transform-gpu">
               {/* Continuous Flowing Energy Beam */}
-              <div className="w-full h-1.5 sm:h-2 rounded-full animate-flow-beam relative overflow-hidden shadow-[0_0_10px_rgba(16,185,129,0.5)] transform-gpu">
+              <div className="w-full h-2 sm:h-2.5 rounded-full animate-flow-beam relative overflow-hidden shadow-[0_0_15px_rgba(16,185,129,0.6)] transform-gpu">
                 {/* Moving Pulses Travelling back and forth */}
-                <div className="travel-pulse-right absolute top-0 w-4 sm:w-6 h-full bg-white rounded-full blur-[1px]" />
-                <div className="travel-pulse-left absolute top-0 w-4 sm:w-6 h-full bg-emerald-200 rounded-full blur-[1px]" />
+                <div className="travel-pulse-right absolute top-0 w-5 sm:w-8 h-full bg-white rounded-full blur-[1px]" />
+                <div className="travel-pulse-left absolute top-0 w-5 sm:w-8 h-full bg-cyan-200 rounded-full blur-[1px]" />
               </div>
 
-              {/* Glowing Pulse Particles - Strictly Clamped Inside overflow-hidden */}
+              {/* Glowing Pulse Particles */}
               <div className="w-full relative h-2 -mt-1 pointer-events-none overflow-hidden transform-gpu">
-                <div className="travel-pulse-right absolute top-0 w-2 h-2 rounded-full bg-[#10B981] shadow-[0_0_6px_#10B981]" />
-                <div className="travel-pulse-left absolute top-0 w-2 h-2 rounded-full bg-[#FF8A3D] shadow-[0_0_6px_#FF8A3D]" />
+                <div className="travel-pulse-right absolute top-0 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+                <div className="travel-pulse-left absolute top-0 w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#38bdf8]" />
               </div>
 
               {/* Connected Badge */}
-              <div className="mt-2 sm:mt-3">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 text-[10px] sm:text-xs font-bold shadow-xs whitespace-nowrap">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Connected</span>
+              <div className="mt-2.5 sm:mt-3">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-modal bg-emerald-950/60 text-emerald-300 border-emerald-500/40 text-[10px] sm:text-xs font-bold shadow-[0_0_15px_rgba(16,185,129,0.3)] whitespace-nowrap">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
+                  <span>Direct P2P</span>
                 </span>
               </div>
             </div>
@@ -190,14 +189,14 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
             /* Waiting/Connecting State */
             <div className="w-full flex flex-col items-center justify-center transform-gpu">
               {/* Dashed line bridge */}
-              <div className="w-full border-t-2 border-dashed border-[#DFD5C0] relative overflow-hidden h-1">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[#FF8A3D] animate-pulse" />
+              <div className="w-full border-t-2 border-dashed border-white/20 relative overflow-hidden h-1">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-amber-400 animate-pulse shadow-[0_0_6px_#fbbf24]" />
               </div>
 
               {/* Waiting Status */}
-              <div className="mt-2 sm:mt-2.5">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white text-slate-500 border border-[#E8E0D1] text-[9px] sm:text-[11px] font-semibold whitespace-nowrap shadow-2xs">
-                  <RefreshCw className="w-2.5 h-2.5 animate-spin text-[#185ADB]" />
+              <div className="mt-2.5 sm:mt-3">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full glass-pill text-slate-300 text-[9px] sm:text-[11px] font-semibold whitespace-nowrap">
+                  <RefreshCw className="w-2.5 h-2.5 animate-spin text-cyan-400" />
                   <span>Waiting</span>
                 </span>
               </div>
@@ -209,14 +208,14 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
         <div className="relative flex flex-col items-center">
           {hasPeer ? (
             /* Connected Paired Device Circle */
-            <div className="relative w-28 h-28 xs:w-32 xs:h-32 sm:w-40 sm:h-40 rounded-full bg-white border-2 border-emerald-500 shadow-md shadow-emerald-500/15 ring-4 ring-emerald-500/10 flex flex-col items-center justify-center p-2 text-center transition-transform hover:scale-[1.02]">
+            <div className="relative w-28 h-28 xs:w-32 xs:h-32 sm:w-40 sm:h-40 rounded-full bg-slate-900/60 backdrop-blur-2xl border-2 border-emerald-400/60 shadow-[0_0_35px_rgba(16,185,129,0.3)] ring-4 ring-emerald-500/15 flex flex-col items-center justify-center p-2 text-center transition-transform hover:scale-[1.02]">
               {/* Top Badge Tag */}
-              <span className="absolute -top-2.5 px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] sm:text-[10px] font-bold shadow-2xs">
-                Paired
+              <span className="absolute -top-2.5 px-3 py-0.5 rounded-full bg-gradient-to-r from-emerald-600 to-teal-500 text-white text-[9px] sm:text-[10px] font-bold shadow-md">
+                CONNECTED
               </span>
 
               {/* Icon */}
-              <div className="p-2 sm:p-2.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 mb-1">
+              <div className="p-2 sm:p-2.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 mb-1 shadow-inner">
                 {peer.deviceType === 'laptop' ? (
                   <Laptop className="w-5 h-5 sm:w-6 sm:h-6" />
                 ) : (
@@ -225,26 +224,26 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
               </div>
 
               {/* Peer Device Name */}
-              <span className="text-xs sm:text-sm font-extrabold text-slate-900 truncate max-w-[85px] xs:max-w-[100px] sm:max-w-[125px] mt-0.5">
+              <span className="text-xs sm:text-sm font-extrabold text-white truncate max-w-[85px] xs:max-w-[100px] sm:max-w-[125px] mt-0.5">
                 {peer.name}
               </span>
 
               {/* Status subtitle */}
-              <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 mt-1 flex items-center gap-1">
-                <Zap className="w-2.5 h-2.5 text-emerald-500" />
+              <span className="text-[9px] sm:text-[10px] font-bold text-emerald-400 mt-1 flex items-center gap-1">
+                <Zap className="w-2.5 h-2.5 text-emerald-400" />
                 <span>Ready</span>
               </span>
             </div>
           ) : (
             /* Waiting Target Device Circle */
-            <div className="relative w-28 h-28 xs:w-32 xs:h-32 sm:w-40 sm:h-40 rounded-full bg-white/70 border-2 border-dashed border-[#DFD5C0] flex flex-col items-center justify-center p-2 text-center transition-all">
+            <div className="relative w-28 h-28 xs:w-32 xs:h-32 sm:w-40 sm:h-40 rounded-full bg-slate-900/30 backdrop-blur-xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center p-2 text-center transition-all">
               {/* Top Badge Tag */}
-              <span className="absolute -top-2.5 px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-600 text-[9px] sm:text-[10px] font-bold shadow-2xs">
-                Target
+              <span className="absolute -top-2.5 px-2.5 py-0.5 rounded-full glass-pill text-slate-400 text-[9px] sm:text-[10px] font-bold">
+                TARGET
               </span>
 
               {/* Icon */}
-              <div className="p-2 sm:p-2.5 rounded-full bg-[#FAF8F5] text-slate-400 border border-[#E8E0D1] mb-1">
+              <div className="p-2 sm:p-2.5 rounded-full bg-white/5 text-slate-500 border border-white/10 mb-1">
                 {myDeviceType === 'mobile' ? (
                   <Laptop className="w-5 h-5 sm:w-6 sm:h-6" />
                 ) : (
@@ -253,12 +252,12 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
               </div>
 
               {/* Target Device Type */}
-              <span className="text-xs sm:text-sm font-bold text-slate-600 truncate max-w-[85px] xs:max-w-[100px] sm:max-w-[125px] mt-0.5">
+              <span className="text-xs sm:text-sm font-bold text-slate-400 truncate max-w-[85px] xs:max-w-[100px] sm:max-w-[125px] mt-0.5">
                 {myDeviceType === 'mobile' ? 'Laptop' : 'Mobile'}
               </span>
 
               {/* Subtext */}
-              <span className="text-[9px] sm:text-[10px] text-slate-400 mt-1">
+              <span className="text-[9px] sm:text-[10px] text-slate-500 mt-1">
                 Offline
               </span>
             </div>
@@ -268,39 +267,39 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
 
       {/* When Not Connected: Quick Actions (Scan, QR, PIN) below the circles */}
       {!hasPeer && (
-        <div className="mt-4 pt-3.5 border-t border-[#E8E0D1] flex flex-col items-center gap-2.5">
+        <div className="mt-5 pt-4 border-t border-white/10 flex flex-col items-center gap-3">
           <div className="flex items-center justify-center gap-2 flex-wrap">
             {myDeviceType === 'mobile' && onOpenScanner && (
               <button
                 onClick={onOpenScanner}
-                className="px-3.5 py-1.5 bg-[#185ADB] hover:bg-[#1246AB] text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
-                title="Scan"
+                className="px-4 py-2 glass-btn-primary rounded-xl flex items-center gap-1.5 text-xs font-semibold active:scale-95 shadow-md"
+                title="Scan QR Code"
               >
                 <Camera className="w-3.5 h-3.5" />
-                <span>Scan</span>
+                <span>Scan QR</span>
               </button>
             )}
 
             <button
               onClick={onOpenQR}
-              className="px-3.5 py-1.5 bg-white hover:bg-[#F5F1E8] text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 border border-[#E8E0D1] shadow-2xs transition-colors"
-              title="QR Code"
+              className="px-3.5 py-2 glass-btn-secondary text-xs font-semibold rounded-xl flex items-center gap-1.5"
+              title="View QR Code"
             >
-              <QrCode className="w-3.5 h-3.5 text-[#185ADB]" />
-              <span>QR</span>
+              <QrCode className="w-3.5 h-3.5 text-cyan-400" />
+              <span>QR Code</span>
             </button>
 
             <button
               onClick={() => setShowPinInput(!showPinInput)}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl flex items-center gap-1.5 border transition-colors shadow-2xs ${
+              className={`px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all shadow-xs ${
                 showPinInput
-                  ? 'bg-[#FF8A3D] text-white border-[#FF8A3D]'
-                  : 'bg-white hover:bg-[#F5F1E8] text-slate-700 border-[#E8E0D1]'
+                  ? 'glass-btn-accent text-white'
+                  : 'glass-btn-secondary text-slate-200'
               }`}
-              title="PIN"
+              title="Enter PIN"
             >
-              <KeyRound className={`w-3.5 h-3.5 ${showPinInput ? 'text-white' : 'text-[#FF8A3D]'}`} />
-              <span>PIN</span>
+              <KeyRound className={`w-3.5 h-3.5 ${showPinInput ? 'text-white' : 'text-amber-400'}`} />
+              <span>Enter PIN</span>
             </button>
           </div>
 
@@ -315,25 +314,25 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
                   placeholder="6-digit PIN"
                   value={inputPin}
                   onChange={handlePinChange}
-                  className={`flex-1 bg-white rounded-xl px-3 py-1.5 text-xs text-slate-900 outline-none font-mono tracking-widest text-center border shadow-xs transition-all ${
+                  className={`flex-1 glass-input rounded-xl px-3 py-2 text-xs outline-none font-mono tracking-widest text-center transition-all ${
                     pinError
-                      ? 'border-rose-400 ring-1 ring-rose-400/50 bg-rose-50/50 text-rose-800'
-                      : 'border-[#DFD5C0] focus:border-[#185ADB]'
+                      ? 'border-rose-500 ring-2 ring-rose-500/30 text-rose-300'
+                      : 'focus:border-cyan-400'
                   }`}
                   autoFocus
                 />
                 <button
                   type="submit"
                   disabled={inputPin.length < 6 || isCheckingPin}
-                  className="px-3.5 py-1.5 bg-[#FF8A3D] hover:bg-[#E66F20] disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-colors shadow-xs shrink-0"
+                  className="px-4 py-2 glass-btn-accent disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shrink-0"
                 >
                   {isCheckingPin ? '...' : 'Connect'}
                 </button>
               </form>
 
               {pinError && (
-                <div className="mt-1.5 p-1.5 rounded-lg bg-rose-50 border border-rose-200 flex items-center gap-1.5 text-rose-700 text-[11px] justify-center">
-                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                <div className="mt-2 p-2 rounded-xl bg-rose-950/60 border border-rose-500/30 flex items-center gap-1.5 text-rose-300 text-[11px] justify-center">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                   <span>{pinError}</span>
                 </div>
               )}
@@ -344,4 +343,3 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
     </div>
   );
 };
-

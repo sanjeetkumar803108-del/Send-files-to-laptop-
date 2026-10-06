@@ -63,3 +63,55 @@ export function getPublicAppUrl(): string {
   return `${protocol}//${host}`;
 }
 
+export function isNativePlatform(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  const protocol = window.location.protocol;
+  return host === 'localhost' || host === '127.0.0.1' || protocol === 'capacitor:' || protocol === 'ionic:';
+}
+
+export function resolveSignalingUrl(overrideUrl?: string): string {
+  if (overrideUrl?.trim()) {
+    const trimmed = overrideUrl.trim();
+    if (trimmed.includes('vercel.app')) {
+      return '';
+    }
+    return trimmed;
+  }
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('hotspot_drop_signaling_url')?.trim();
+    if (saved) {
+      if (saved.includes('vercel.app')) {
+        localStorage.removeItem('hotspot_drop_signaling_url');
+      } else {
+        return saved;
+      }
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const sigParam = params.get('sig') || params.get('server');
+    if (sigParam?.trim()) {
+      const trimmedSig = sigParam.trim();
+      if (!trimmedSig.includes('vercel.app')) {
+        return trimmedSig;
+      }
+    }
+  }
+
+  const envWs = (import.meta.env.VITE_SIGNALING_URL as string | undefined)?.trim();
+  if (envWs && !envWs.includes('vercel.app')) return envWs;
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    // ONLY when running locally on laptop with the Vite dev server (Node setupSignalingServer):
+    const isDevServer = (host === 'localhost' || host === '127.0.0.1') && !isNativePlatform();
+    if (isDevServer) {
+      const port = window.location.port ? `:${window.location.port}` : '';
+      return `ws://${host}${port}/ws`;
+    }
+    // On Vercel, Netlify, Cloudflare, or native Android Capacitor APK:
+    // ALWAYS return '' to use zero-config Cloud Relay!
+    return '';
+  }
+  return '';
+}

@@ -95,7 +95,7 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
         className="hidden"
       />
 
-      {/* Main Drag & Drop Box */}
+      {/* Main Drag & Drop Glass Box */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -105,58 +105,66 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
             handleFilesChosen(e.dataTransfer.files);
           }
         }}
-        className={`relative w-full rounded-2xl border-2 border-dashed p-6 text-center transition-all backdrop-blur-2xl shadow-[0_10px_35px_rgba(24,90,219,0.03)] ${
+        className={`relative w-full rounded-3xl border-2 border-dashed p-6 sm:p-8 text-center transition-all duration-300 glass-panel ${
           isDragging
-            ? 'border-[#185ADB] bg-[#EEF4FD]/80 scale-[1.01]'
-            : 'border-[#DFD5C0] hover:border-[#185ADB] bg-[#FAF8F5]/85 hover:bg-white/95'
+            ? 'border-cyan-400 bg-cyan-950/30 shadow-[0_0_40px_rgba(6,182,212,0.35)] scale-[1.01]'
+            : 'border-white/15 hover:border-blue-400/50 hover:bg-slate-900/40'
         }`}
       >
         <div className="max-w-md mx-auto flex flex-col items-center justify-center">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#EEF4FD] to-[#FFF5EE] text-[#185ADB] border border-[#D8E5FB] flex items-center justify-center mb-2.5 shadow-inner">
-            <UploadCloud className="w-6 h-6" />
+          {/* Glowing Cloud Orb */}
+          <div className="relative group mb-3">
+            <div className="absolute -inset-2 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 opacity-30 blur-md group-hover:opacity-75 transition duration-300" />
+            <div className="relative w-14 h-14 rounded-2xl glass-card flex items-center justify-center text-cyan-300 border border-white/20 shadow-inner">
+              <UploadCloud className="w-7 h-7" />
+            </div>
           </div>
 
-          <h3 className="text-base font-bold text-slate-900 tracking-tight">
-            Drop Files
+          <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+            Drag & Drop Files Here
           </h3>
+          <p className="text-xs text-slate-300 mt-1 max-w-xs">
+            Direct high-speed P2P transfer between Laptop and Mobile
+          </p>
 
-          {/* Action Buttons - Distinct Cobalt, Tangerine, Linen Mix */}
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-            {/* Cobalt Blue Button */}
+          {/* Action Buttons - Distinct Frosted Glass Style */}
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+            {/* Cobalt / Cyan Glass Button */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 bg-[#185ADB] hover:bg-[#1246AB] text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-md shadow-[#185ADB]/20 transition-all hover:scale-105 active:scale-95"
+              className="px-4 py-2 glass-btn-primary text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-md active:scale-95"
             >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Files</span>
+              <FileText className="w-3.5 h-3.5 text-cyan-200" />
+              <span>Choose Files</span>
             </button>
 
-            {/* Tangerine Button */}
+            {/* Amber Glass Button */}
             <button
               onClick={() => folderInputRef.current?.click()}
-              className="px-4 py-2 bg-[#FF8A3D] hover:bg-[#E66F20] text-white text-xs font-semibold rounded-xl shadow-md shadow-[#FF8A3D]/20 flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95"
+              className="px-4 py-2 glass-btn-accent text-white text-xs font-semibold rounded-xl shadow-md flex items-center gap-1.5 active:scale-95"
             >
-              <FolderUp className="w-3.5 h-3.5" />
-              <span>Folder</span>
+              <FolderUp className="w-3.5 h-3.5 text-amber-200" />
+              <span>Select Folder</span>
             </button>
 
-            {/* Cream Linen Button with Cobalt Accent */}
+            {/* Camera Button on Mobile */}
             <button
               onClick={() => cameraInputRef.current?.click()}
-              className="px-3.5 py-2 bg-white hover:bg-[#F5F1E8] text-[#185ADB] text-xs font-semibold rounded-xl border border-[#DFD5C0] shadow-2xs flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 sm:hidden"
+              className="px-3.5 py-2 glass-btn-secondary text-xs font-semibold rounded-xl flex items-center gap-1.5 active:scale-95 sm:hidden"
             >
-              <Camera className="w-3.5 h-3.5 text-[#FF8A3D]" />
+              <Camera className="w-3.5 h-3.5 text-emerald-400" />
               <span>Camera</span>
             </button>
           </div>
 
           {!isPeerConnected && (
-            <div className="mt-3 pt-2.5 border-t border-[#E8E0D1] w-full flex items-center justify-center gap-1 text-xs">
+            <div className="mt-4 pt-3 border-t border-white/10 w-full flex items-center justify-center gap-1 text-xs">
+              <span className="text-slate-400">Device not connected?</span>
               <button
                 onClick={onOpenQR}
-                className="font-semibold text-[#FF8A3D] hover:text-[#E66F20] flex items-center gap-0.5"
+                className="font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-0.5 transition-colors"
               >
-                <span>Pair</span>
+                <span>Pair Devices</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -166,40 +174,40 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
 
       {/* Staged Files Preview */}
       {stagedFiles.length > 0 && (
-        <div className="p-3.5 bg-[#FAF8F5]/90 backdrop-blur-2xl border border-[#E8E0D1] rounded-2xl shadow-md space-y-2.5">
+        <div className="p-4 glass-panel rounded-2xl space-y-3 animate-in fade-in duration-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-800">
-                Selected
+              <span className="text-xs font-bold text-white">
+                Selected Files
               </span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-[#EEF4FD] text-[#185ADB] border border-[#D8E5FB] font-semibold">
+              <span className="text-xs px-2.5 py-0.5 rounded-full glass-pill text-cyan-300 border-cyan-400/20 font-semibold">
                 {stagedFiles.length} ({formatBytes(totalStagedSize)})
               </span>
             </div>
 
             <button
               onClick={() => setStagedFiles([])}
-              className="text-xs text-slate-400 hover:text-rose-600 transition-colors"
+              className="text-xs text-slate-400 hover:text-rose-400 transition-colors"
             >
               Clear
             </button>
           </div>
 
-          <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+          <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
             {stagedFiles.map((file, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between p-2 rounded-lg bg-white border border-[#E8E0D1] text-xs text-slate-700"
+                className="flex items-center justify-between p-2 rounded-xl glass-card text-xs text-slate-200 border-white/10"
               >
                 <div className="flex items-center gap-2 truncate pr-2">
-                  <FileText className="w-3.5 h-3.5 text-[#185ADB] shrink-0" />
+                  <FileText className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                   <span className="truncate font-medium">{file.name}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[11px] text-slate-500">{formatBytes(file.size)}</span>
+                  <span className="text-[11px] text-slate-400">{formatBytes(file.size)}</span>
                   <button
                     onClick={() => removeStagedFile(idx)}
-                    className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                    className="p-1 text-slate-400 hover:text-rose-400 rounded transition-colors"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -212,10 +220,10 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
             <button
               onClick={handleSendStaged}
               disabled={!isPeerConnected}
-              className="px-5 py-2 bg-gradient-to-r from-[#185ADB] to-[#FF8A3D] hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-[#185ADB]/20 active:scale-95"
+              className="px-5 py-2 glass-btn-primary disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-lg active:scale-95"
             >
-              <Send className="w-3.5 h-3.5" />
-              <span>{isPeerConnected ? 'Send' : 'Connect'}</span>
+              <Send className="w-3.5 h-3.5 text-cyan-200" />
+              <span>{isPeerConnected ? 'Send Now' : 'Connect First'}</span>
             </button>
           </div>
         </div>
