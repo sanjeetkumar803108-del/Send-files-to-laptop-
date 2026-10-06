@@ -3,10 +3,10 @@ import { playStartChime, playSuccessChime } from '../utils/audio';
 import { resolveSignalingUrl, isNativePlatform } from '../utils/format';
 import { CloudSignalingClient } from './cloudSignaling';
 
-const CHUNK_SIZE = 64 * 1024 - 16; // 65,520 B (+12 B header = 65,532 B, perfectly fits within Android WebRTC 64KB SCTP limit)
+const CHUNK_SIZE = 32 * 1024 - 16; // 32 KB chunk: completely safe across all Android WebViews, iOS, and PC without SCTP overflow
 const READ_BLOCK_SIZE = 2 * 1024 * 1024; // 2 MB fast disk read block
-const BUFFERED_THRESHOLD = 4 * 1024 * 1024; // 4 MB smooth pipeline for mobile throughput
-const LOW_BUFFER_THRESHOLD = 512 * 1024; // 512 KB resume threshold
+const BUFFERED_THRESHOLD = 1024 * 1024; // 1 MB buffer limit to prevent SCTP congestion
+const LOW_BUFFER_THRESHOLD = 256 * 1024; // 256 KB resume threshold
 
 export type ConnectionCallback = (mode: ConnectionMode) => void;
 export type PeersCallback = (peers: PeerDevice[]) => void;
@@ -256,7 +256,7 @@ export class TransferEngine {
       });
 
       const isChannelOpen = this.dataChannel && this.dataChannel.readyState === 'open';
-      if (!isChannelOpen && this.connectedPeers.length > 0) {
+      if (!isChannelOpen && this.connectedPeers.length > 0 && !this.isBusy() && this.activeReceiving.size === 0) {
         console.log('[Recovery] Cloud DataChannel not open, re-initiating WebRTC handshake...');
         this.initiatePeerConnection(this.connectedPeers[0].id, this.isInitiator);
       }
@@ -283,7 +283,7 @@ export class TransferEngine {
 
     // 3. Check WebRTC DataChannel liveness
     const isChannelOpen = this.dataChannel && this.dataChannel.readyState === 'open';
-    if (!isChannelOpen && this.connectedPeers.length > 0) {
+    if (!isChannelOpen && this.connectedPeers.length > 0 && !this.isBusy() && this.activeReceiving.size === 0) {
       console.log('[Recovery] DataChannel not open, re-initiating WebRTC handshake...');
       this.initiatePeerConnection(this.connectedPeers[0].id, this.isInitiator);
     }
@@ -296,6 +296,13 @@ export class TransferEngine {
     this.heartbeatInterval = setInterval(() => {
       if (this.connectedPeers.length === 0) return;
       const now = Date.now();
+
+      // CRITICAL FIX: While actively transferring or receiving files, NEVER disconnect!
+      const isActivelyTransferring = this.isBusy() || this.activeReceiving.size > 0;
+      if (isActivelyTransferring) {
+        this.lastPeerHeartbeat = now;
+        return;
+      }
 
       // Send ping over DataChannel if direct P2P
       if (this.dataChannel && this.dataChannel.readyState === 'open') {
@@ -1036,6 +1043,7 @@ export class TransferEngine {
 
   private applyChunk(targetFile: ActiveReceivingFile, chunkIndex: number, payload: Uint8Array) {
     if (this.cancelledTransfers.has(targetFile.fileId)) return;
+    this.lastPeerHeartbeat = Date.now();
 
     const progress = this.transfers.get(targetFile.fileId);
     if (progress && progress.status === 'queued') {
@@ -1386,34 +1394,58 @@ export class TransferEngine {
           const canSendP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
 
           if (canSendP2P) {
-            // Keep buffer filled up to 4MB for non-stop saturating throughput
-            if (this.dataChannel!.bufferedAmount > BUFFERED_THRESHOLD) {
+            // Strict backpressure loop: wait until buffer drains below threshold to prevent SCTP exhaustion
+            while (
+              this.dataChannel &&
+              this.dataChannel.readyState === 'open' &&
+              this.dataChannel.bufferedAmount > BUFFERED_THRESHOLD
+            ) {
+              if (this.cancelledTransfers.has(fileId)) break;
               await new Promise<void>((resolve) => {
-                if (!this.dataChannel || this.dataChannel.readyState !== 'open') return resolve();
-                let timeoutId: any;
+                let timer: any;
                 const onLow = () => {
-                  clearTimeout(timeoutId);
+                  clearTimeout(timer);
                   this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
                   resolve();
                 };
-                timeoutId = setTimeout(() => {
+                timer = setTimeout(() => {
                   this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
                   resolve();
-                }, 250);
-                this.dataChannel.addEventListener('bufferedamountlow', onLow);
+                }, 40);
+                this.dataChannel?.addEventListener('bufferedamountlow', onLow);
               });
             }
 
             try {
-              this.dataChannel!.send(packet.buffer);
-            } catch {
-              // Seamless fallback to WebSocket if DataChannel throws or drops mid-stream
+              if (this.dataChannel && this.dataChannel.readyState === 'open') {
+                this.dataChannel.send(packet.buffer);
+                this.lastPeerHeartbeat = Date.now();
+              } else {
+                throw new Error('DataChannel closed mid-stream');
+              }
+            } catch (dcErr) {
+              console.warn('[WebRTC] DataChannel send failed, falling back to relay chunk:', dcErr);
+              // Fallback to WebSocket or Cloud Relay so no chunk is ever dropped!
               if (this.ws && this.ws.readyState === WebSocket.OPEN) {
                 this.ws.send(packet.buffer);
+              } else if (this.cloudClient) {
+                let binary = '';
+                const len = chunkPayload.byteLength;
+                for (let i = 0; i < len; i++) {
+                  binary += String.fromCharCode(chunkPayload[i]);
+                }
+                this.sendSignaling({
+                  type: 'relay-chunk',
+                  targetPeerId,
+                  fileId,
+                  chunkIndex,
+                  data: btoa(binary),
+                });
+                await new Promise((r) => setTimeout(r, 6));
               }
             }
           } else if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            // Direct Raw Binary over WebSocket (0% Base64 overhead, full wire speed)
+            // Direct Raw Binary over WebSocket
             while (this.ws && this.ws.bufferedAmount > 2 * 1024 * 1024) {
               await new Promise((r) => setTimeout(r, 10));
             }
@@ -1423,6 +1455,7 @@ export class TransferEngine {
             }
 
             this.ws.send(packet.buffer);
+            this.lastPeerHeartbeat = Date.now();
           } else {
             // Wait briefly for WebRTC DataChannel to open, otherwise fallback to Cloud Relay
             let waited = 0;
