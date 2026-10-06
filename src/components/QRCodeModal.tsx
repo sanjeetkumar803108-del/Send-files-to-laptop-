@@ -118,32 +118,32 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-2xl animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg glass-modal rounded-3xl p-6 text-slate-100 overflow-hidden max-h-[92vh] overflow-y-auto scrollbar-thin">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-lg glass-modal rounded-3xl p-6 text-slate-800 overflow-hidden max-h-[92vh] overflow-y-auto scrollbar-thin">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors z-10"
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-800 rounded-full hover:bg-slate-100 transition-colors z-10"
           aria-label="Close"
         >
           <X className="w-5 h-5" />
         </button>
 
         <div className="text-center">
-          <div className="inline-flex p-2.5 bg-blue-500/15 text-cyan-300 rounded-2xl mb-2 border border-blue-400/25 shadow-inner">
+          <div className="inline-flex p-2.5 bg-blue-500/10 text-blue-600 rounded-2xl mb-2 border border-blue-400/25 shadow-xs">
             <QrCode className="w-5 h-5" />
           </div>
-          <h2 className="text-lg font-bold tracking-tight text-white">
+          <h2 className="text-lg font-bold tracking-tight text-slate-900">
             {lang === 'hi' ? 'डिवाइस कनेक्ट करें (Pairing)' : 'Connect Device (Pairing)'}
           </h2>
-          <p className="text-xs text-slate-300 mt-1">
+          <p className="text-xs text-slate-600 mt-1">
             Scan QR code or use the 6-digit PIN to establish instant direct P2P link
           </p>
         </div>
 
         {/* QR Code Container */}
         <div className="mt-4 flex flex-col items-center justify-center">
-          <div className="p-3.5 bg-white/95 rounded-2xl shadow-[0_0_35px_rgba(59,130,246,0.3)] ring-2 ring-cyan-400/30">
+          <div className="p-3.5 bg-white rounded-2xl shadow-[0_12px_32px_rgba(37,99,235,0.12)] border border-slate-200/80 ring-4 ring-blue-500/10">
             {qrDataUrl ? (
               <img
                 src={qrDataUrl}
@@ -158,40 +158,40 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
           </div>
 
           {/* 6-Digit Pair PIN */}
-          <div className="mt-4 w-full glass-card border border-white/15 rounded-2xl p-3 flex items-center justify-between shadow-lg">
+          <div className="mt-4 w-full glass-card border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between shadow-xs">
             <div className="text-left">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
                 6-DIGIT PIN
               </span>
-              <p className="text-2xl font-mono font-extrabold tracking-widest bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-300 bg-clip-text text-transparent">
+              <p className="text-2xl font-mono font-extrabold tracking-widest bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 bg-clip-text text-transparent">
                 {roomId.replace(/(\d{3})(\d{3})/, '$1 $2')}
               </p>
             </div>
             <button
               onClick={copyPin}
-              className="px-3.5 py-1.5 text-xs font-semibold glass-btn-primary rounded-xl flex items-center gap-1.5 transition-all active:scale-95"
+              className="px-3.5 py-1.5 text-xs font-semibold glass-btn-primary rounded-xl flex items-center gap-1.5 transition-all active:scale-95 shadow-sm"
             >
-              {copiedPin ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedPin ? <Check className="w-3.5 h-3.5 text-emerald-200" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copiedPin ? 'Copied' : 'Copy'}</span>
             </button>
           </div>
 
           {/* Quick URL Box */}
-          <div className="mt-3 w-full p-2.5 rounded-2xl glass-card font-mono text-[11px] text-slate-300 flex items-center justify-between gap-1.5 min-w-0 border-white/10">
-            <div className="overflow-x-auto whitespace-nowrap scrollbar-thin select-all flex-1 text-left min-w-0 py-0.5 text-slate-300">
+          <div className="mt-3 w-full p-2.5 rounded-2xl glass-card font-mono text-[11px] text-slate-700 flex items-center justify-between gap-1.5 min-w-0 border-slate-200/80">
+            <div className="overflow-x-auto whitespace-nowrap scrollbar-thin select-all flex-1 text-left min-w-0 py-0.5 text-slate-700">
               <span>{effectiveBaseUrl}</span>
             </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-2">
               <button
                 onClick={copyUrl}
-                className="text-xs px-2.5 py-1 rounded-lg glass-btn-primary font-medium flex items-center gap-1"
+                className="text-xs px-2.5 py-1 rounded-lg glass-btn-primary font-medium flex items-center gap-1 shadow-xs"
               >
                 <Copy className="w-3 h-3" />
                 <span>{copiedUrl ? 'Copied' : 'Copy'}</span>
               </button>
               <button
                 onClick={shareLink}
-                className="text-xs px-2.5 py-1 rounded-lg glass-btn-accent font-medium flex items-center gap-1"
+                className="text-xs px-2.5 py-1 rounded-lg glass-btn-accent font-medium flex items-center gap-1 shadow-xs"
               >
                 <Share2 className="w-3 h-3" />
                 <span>Share</span>
@@ -207,7 +207,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
                   onClose();
                   onOpenScanner();
                 }}
-                className="px-4 py-2.5 glass-btn-primary rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95"
+                className="px-4 py-2.5 glass-btn-primary rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
               >
                 <Camera className="w-4 h-4" />
                 <span>Open Scanner</span>
@@ -216,7 +216,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
 
             <button
               onClick={shareLink}
-              className="px-4 py-2.5 glass-btn-accent rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95"
+              className="px-4 py-2.5 glass-btn-accent rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
             >
               <Share2 className="w-4 h-4" />
               <span>Share Link</span>

@@ -138,33 +138,33 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-2xl animate-in fade-in duration-200">
-      <div className="relative w-full max-w-sm glass-modal rounded-3xl p-5 text-slate-100 overflow-hidden text-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-sm glass-modal rounded-3xl p-5 text-slate-800 overflow-hidden text-center">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-3.5 right-3.5 p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors z-10"
+          className="absolute top-3.5 right-3.5 p-2 text-slate-400 hover:text-slate-800 rounded-full hover:bg-slate-100 transition-colors z-10"
         >
           <X className="w-5 h-5" />
         </button>
 
         <div className="flex items-center justify-center gap-2 mb-2">
-          <div className="p-2 bg-blue-500/15 text-cyan-300 rounded-xl border border-blue-400/25 shadow-inner">
+          <div className="p-2 bg-blue-500/10 text-blue-600 rounded-xl border border-blue-400/25 shadow-xs">
             <Camera className="w-5 h-5" />
           </div>
-          <h3 className="text-base font-bold text-white">
+          <h3 className="text-base font-bold text-slate-900">
             {lang === 'hi' ? 'Laptop Screen Scan Karein' : 'Scan Laptop QR Code'}
           </h3>
         </div>
 
-        <p className="text-xs text-slate-300 mb-4 max-w-xs mx-auto">
+        <p className="text-xs text-slate-600 mb-4 max-w-xs mx-auto">
           {lang === 'hi'
             ? 'Laptop screen par dikh rahe QR Code ke samne camera layein.'
             : 'Point your camera towards the QR code on your laptop screen.'}
         </p>
 
         {/* Video stream container */}
-        <div className="relative w-full aspect-square bg-slate-950/80 rounded-2xl overflow-hidden border border-white/15 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.6)]">
+        <div className="relative w-full aspect-square bg-slate-950/80 rounded-2xl overflow-hidden border border-slate-300/60 flex items-center justify-center shadow-lg">
           <div id={scannerContainerId} className="w-full h-full" />
 
           {/* Animated Scanner Laser & Corner Overlay */}
@@ -173,7 +173,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               <div className="relative w-48 h-48 border-2 border-cyan-400/60 rounded-2xl overflow-hidden shadow-[0_0_20px_rgba(6,182,212,0.3)]">
                 {/* Laser scan line in Cyan */}
                 <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#38bdf8] animate-bounce" />
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full glass-modal text-[10px] text-cyan-200 flex items-center gap-1 shadow-md">
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-slate-900/80 text-[10px] text-cyan-200 flex items-center gap-1 shadow-md">
                   <Zap className="w-2.5 h-2.5 text-amber-400" />
                   <span>Scanning...</span>
                 </div>
@@ -199,7 +199,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         <div className="mt-4">
           <button
             onClick={onClose}
-            className="w-full py-2.5 glass-btn-secondary text-xs font-semibold rounded-xl"
+            className="w-full py-2.5 glass-btn-secondary text-xs font-semibold rounded-xl text-slate-700"
           >
             Close
           </button>

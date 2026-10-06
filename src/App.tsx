@@ -404,33 +404,33 @@ export default function App() {
   const currentOrigin = getPublicAppUrl();
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#070A12] text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative">
-      {/* Ambient Glassmorphic Aurora Mesh Glows - Hardware Accelerated */}
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#F8FAFC] text-slate-800 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative">
+      {/* Ambient Luminous Aurora Mesh Glows - Hardware Accelerated */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10 transform-gpu will-change-transform">
-        {/* Aurora Orb 1: Electric Blue / Cyan */}
-        <div className="absolute top-[-15%] left-[-10%] w-[60vw] h-[60vw] rounded-full bg-gradient-to-br from-blue-600/25 via-cyan-500/15 to-transparent blur-[90px] animate-aurora-1 transform-gpu" />
-        {/* Aurora Orb 2: Neon Purple / Indigo */}
-        <div className="absolute bottom-[-15%] right-[-10%] w-[65vw] h-[65vw] rounded-full bg-gradient-to-tl from-indigo-600/30 via-purple-600/20 to-transparent blur-[100px] animate-aurora-2 transform-gpu" />
-        {/* Aurora Orb 3: Radiant Amber / Coral Spark */}
-        <div className="absolute top-[35%] right-[5%] w-[45vw] h-[45vw] rounded-full bg-gradient-to-tr from-cyan-500/15 via-blue-500/15 to-amber-500/10 blur-[85px] animate-aurora-3 transform-gpu" />
+        {/* Soft Aura Orb 1: Sky Cyan & Electric Blue */}
+        <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] rounded-full bg-gradient-to-br from-blue-300/30 via-cyan-200/25 to-transparent blur-[100px] animate-aurora-1 transform-gpu" />
+        {/* Soft Aura Orb 2: Lavender & Violet Indigo */}
+        <div className="absolute bottom-[-10%] right-[-10%] w-[65vw] h-[65vw] rounded-full bg-gradient-to-tl from-indigo-300/25 via-purple-200/20 to-transparent blur-[110px] animate-aurora-2 transform-gpu" />
+        {/* Soft Aura Orb 3: Radiant Peach & Amber Blossom */}
+        <div className="absolute top-[35%] right-[5%] w-[45vw] h-[45vw] rounded-full bg-gradient-to-tr from-amber-200/25 via-rose-200/20 to-transparent blur-[90px] animate-aurora-3 transform-gpu" />
       </div>
 
-      {/* Toast Notification - Glass Pill */}
+      {/* Toast Notification - Crystal Glass Pill */}
       {toastMessage && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200 max-w-[92vw]">
-          <div className={`px-4 py-2.5 rounded-2xl shadow-2xl border flex items-center gap-2.5 text-xs font-semibold backdrop-blur-2xl ${
+          <div className={`px-4 py-2.5 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-semibold backdrop-blur-2xl ${
             toastMessage.type === 'success'
-              ? 'bg-emerald-950/70 text-emerald-200 border-emerald-500/30 shadow-emerald-500/20'
+              ? 'bg-emerald-50/90 text-emerald-800 border-emerald-300/80 shadow-emerald-500/10'
               : toastMessage.type === 'error'
-              ? 'bg-rose-950/70 text-rose-200 border-rose-500/30 shadow-rose-500/25'
-              : 'glass-modal text-blue-200 border-blue-400/30 shadow-blue-500/20'
+              ? 'bg-rose-50/90 text-rose-800 border-rose-300/80 shadow-rose-500/10'
+              : 'glass-modal text-blue-900 border-blue-200/80 shadow-blue-500/10'
           }`}>
             {toastMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             ) : toastMessage.type === 'error' ? (
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-blue-400 shrink-0" />
+              <AlertCircle className="w-4 h-4 text-blue-600 shrink-0" />
             )}
             <span className="truncate max-w-[260px] xs:max-w-xs sm:max-w-md">{toastMessage.text}</span>
           </div>
@@ -457,20 +457,20 @@ export default function App() {
           <LaptopPairingHero roomId={roomId} lang={lang} />
         )}
 
-        {/* Laptop Web Link - Translucent Glass Card */}
+        {/* Laptop Web Link - Translucent White Glass Card */}
         {!isPeerConnected && deviceType === 'mobile' && (
           <div className="w-full glass-panel rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row items-center justify-between gap-2.5 transition-all">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-blue-500/15 text-blue-400 border border-blue-400/25 shrink-0 shadow-inner">
+              <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 border border-blue-400/25 shrink-0 shadow-xs">
                 <Laptop className="w-4 h-4" />
               </div>
-              <span className="text-xs sm:text-sm font-bold text-slate-200">
+              <span className="text-xs sm:text-sm font-bold text-slate-800">
                 Laptop
               </span>
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto min-w-0">
-              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl glass-input font-mono text-xs text-slate-300 overflow-x-auto whitespace-nowrap scrollbar-thin select-all min-w-0 max-w-full sm:max-w-xs">
+              <div className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl glass-input font-mono text-xs text-slate-800 overflow-x-auto whitespace-nowrap scrollbar-thin select-all min-w-0 max-w-full sm:max-w-xs font-semibold">
                 <span>{currentOrigin}</span>
               </div>
               <button

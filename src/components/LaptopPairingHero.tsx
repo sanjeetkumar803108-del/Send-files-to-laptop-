@@ -133,31 +133,31 @@ export const LaptopPairingHero: React.FC<LaptopPairingHeroProps> = ({ roomId }) 
   return (
     <div className="relative overflow-hidden rounded-3xl glass-panel p-5 sm:p-7 transition-all">
       {/* Decorative Specular Glint */}
-      <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent pointer-events-none" />
+      <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-gradient-to-r from-transparent via-blue-400/40 to-transparent pointer-events-none" />
 
       <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
         {/* Left Column: 6-Digit PIN Showcase */}
         <div className="lg:col-span-7 space-y-4">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-pill text-amber-300 text-[11px] font-bold border-amber-400/20 shadow-xs">
-              <Sparkles className="w-3 h-3 text-amber-400" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-pill text-amber-700 text-[11px] font-bold border-amber-300/40 shadow-xs">
+              <Sparkles className="w-3 h-3 text-amber-500" />
               <span>Instant P2P Pairing</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight mt-2">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight mt-2">
               Scan QR or Enter PIN
             </h2>
-            <p className="text-xs sm:text-sm text-slate-300 mt-1">
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
               Mobile app se QR scan karein ya PIN enter karein to connect directly at full Wi-Fi speed.
             </p>
           </div>
 
-          {/* 6-Digit PIN Showcase - Ultra Glass Card */}
-          <div className="p-4 rounded-2xl glass-card border border-white/15 flex items-center justify-between gap-4 shadow-xl">
+          {/* 6-Digit PIN Showcase - White Glass Card */}
+          <div className="p-4 rounded-2xl glass-card border border-white/80 flex items-center justify-between gap-4 shadow-md">
             <div>
-              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 block">
                 PAIRING PIN
               </span>
-              <div className="text-3xl sm:text-4xl font-mono font-black tracking-widest bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-300 bg-clip-text text-transparent mt-0.5 drop-shadow-[0_0_20px_rgba(6,182,212,0.35)]">
+              <div className="text-3xl sm:text-4xl font-mono font-black tracking-widest bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 bg-clip-text text-transparent mt-0.5">
                 {roomId.replace(/(\d{3})(\d{3})/, '$1 $2')}
               </div>
             </div>
@@ -166,15 +166,15 @@ export const LaptopPairingHero: React.FC<LaptopPairingHeroProps> = ({ roomId }) 
               onClick={copyPin}
               className="px-4 py-2 glass-btn-primary rounded-xl flex items-center gap-1.5 text-xs font-semibold active:scale-95"
             >
-              {copiedPin ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedPin ? <Check className="w-3.5 h-3.5 text-emerald-200" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copiedPin ? 'Copied' : 'Copy'}</span>
             </button>
           </div>
 
           {/* Network IP selector if multiple IPs */}
           {networkIps.length > 1 && (
-            <div className="p-2.5 rounded-xl glass-card text-[11px] text-slate-300 flex flex-wrap items-center gap-1.5">
-              <span className="text-slate-400 font-semibold">IP:</span>
+            <div className="p-2.5 rounded-xl glass-card text-[11px] text-slate-700 flex flex-wrap items-center gap-1.5">
+              <span className="text-slate-500 font-semibold">IP:</span>
               {networkIps.map((ip) => (
                 <button
                   key={ip}
@@ -182,7 +182,7 @@ export const LaptopPairingHero: React.FC<LaptopPairingHeroProps> = ({ roomId }) 
                   className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
                     selectedIp === ip
                       ? 'glass-btn-primary font-bold'
-                      : 'glass-pill text-slate-300 hover:text-white hover:bg-white/10'
+                      : 'glass-pill text-slate-700 hover:text-slate-900 hover:bg-white/80'
                   }`}
                 >
                   {ip.startsWith('192.168.137.') ? `Hotspot (${ip})` : ip}
@@ -194,7 +194,7 @@ export const LaptopPairingHero: React.FC<LaptopPairingHeroProps> = ({ roomId }) 
 
         {/* Right Column: Direct Live QR Code */}
         <div className="lg:col-span-5 flex flex-col items-center justify-center">
-          <div className="relative group p-3.5 bg-white/95 rounded-2xl shadow-[0_0_40px_rgba(59,130,246,0.3)] ring-2 ring-cyan-400/30">
+          <div className="relative group p-3.5 bg-white rounded-2xl shadow-[0_12px_36px_rgba(37,99,235,0.12)] border border-slate-200/70 ring-4 ring-blue-500/10">
             {qrDataUrl ? (
               <img
                 src={qrDataUrl}
@@ -208,22 +208,22 @@ export const LaptopPairingHero: React.FC<LaptopPairingHeroProps> = ({ roomId }) 
               </div>
             )}
 
-            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full glass-modal border-white/20 text-slate-100 text-[10px] font-bold shadow-lg flex items-center gap-1.5 whitespace-nowrap">
-              <Smartphone className="w-3 h-3 text-cyan-400" />
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full glass-modal border-slate-200/80 text-slate-800 text-[10px] font-bold shadow-md flex items-center gap-1.5 whitespace-nowrap">
+              <Smartphone className="w-3 h-3 text-blue-600" />
               <span>Scan with Mobile App</span>
             </div>
           </div>
 
           {/* Direct Base URL Container */}
           <div className="mt-5 w-full max-w-xs text-center">
-            <div className="p-1.5 px-2.5 rounded-xl glass-card font-mono text-[11px] text-slate-300 flex items-center justify-between gap-1.5 min-w-0 border-white/10">
-              <div className="overflow-x-auto whitespace-nowrap scrollbar-thin select-all flex-1 text-left min-w-0 py-0.5 text-slate-300">
+            <div className="p-1.5 px-2.5 rounded-xl glass-card font-mono text-[11px] text-slate-700 flex items-center justify-between gap-1.5 min-w-0 border-slate-200/80">
+              <div className="overflow-x-auto whitespace-nowrap scrollbar-thin select-all flex-1 text-left min-w-0 py-0.5 text-slate-700">
                 <span>{effectiveBaseUrl}</span>
               </div>
               <div className="flex items-center gap-1 shrink-0 ml-1.5">
                 <button
                   onClick={copyUrl}
-                  className="text-[10px] px-2 py-0.5 rounded-lg glass-btn-secondary text-cyan-300 font-semibold flex items-center gap-0.5"
+                  className="text-[10px] px-2 py-0.5 rounded-lg glass-btn-secondary text-blue-600 font-semibold flex items-center gap-0.5"
                 >
                   <Copy className="w-2.5 h-2.5" />
                   <span>{copiedUrl ? 'Copied' : 'Copy'}</span>
