@@ -24,6 +24,7 @@ interface DeviceCardProps {
   onOpenQR: () => void;
   onOpenScanner?: () => void;
   onJoinRoom: (pin: string) => Promise<boolean> | void;
+  onReconnect?: () => void;
   lang: 'hi' | 'en';
 }
 
@@ -33,9 +34,11 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
   onUpdateDeviceName,
   onToggleDeviceType,
   peers,
+  connectionMode,
   onOpenQR,
   onOpenScanner,
   onJoinRoom,
+  onReconnect,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(myDeviceName);
@@ -178,11 +181,33 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
               </div>
 
               {/* Connected Badge */}
-              <div className="mt-2.5 sm:mt-3">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50/90 text-emerald-800 border border-emerald-300/80 text-[10px] sm:text-xs font-bold shadow-xs whitespace-nowrap">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981] animate-pulse" />
-                  <span>Direct P2P</span>
-                </span>
+              <div className="mt-2.5 sm:mt-3 flex flex-col items-center gap-1.5">
+                {connectionMode === 'direct_p2p' ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50/90 text-emerald-800 border border-emerald-300/80 text-[10px] sm:text-xs font-bold shadow-xs whitespace-nowrap">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981] animate-pulse" />
+                    <span>Direct P2P</span>
+                  </span>
+                ) : connectionMode === 'relay' ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50/90 text-blue-800 border border-blue-300/80 text-[10px] sm:text-xs font-bold shadow-xs whitespace-nowrap">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                    <span>Relay Mode</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50/90 text-amber-800 border border-amber-300/80 text-[10px] sm:text-xs font-bold shadow-xs whitespace-nowrap">
+                    <RefreshCw className="w-2.5 h-2.5 animate-spin text-amber-600" />
+                    <span>Linking P2P...</span>
+                  </span>
+                )}
+                {connectionMode !== 'direct_p2p' && onReconnect && (
+                  <button
+                    onClick={onReconnect}
+                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 px-2 py-0.5 rounded-full glass-pill"
+                    title="Retry Direct P2P"
+                  >
+                    <RefreshCw className="w-2.5 h-2.5" />
+                    <span>Reconnect</span>
+                  </button>
+                )}
               </div>
             </div>
           ) : (

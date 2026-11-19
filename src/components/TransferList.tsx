@@ -250,10 +250,26 @@ export const TransferList: React.FC<TransferListProps> = ({
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 mt-0.5">
                     <span>{formatBytes(item.size)}</span>
                     <span>•</span>
                     <span>{item.direction === 'outgoing' ? 'Sent' : 'Received'}</span>
+                    {item.savedPath && (
+                      <>
+                        <span>•</span>
+                        <span className="text-emerald-700 font-semibold truncate max-w-[180px] sm:max-w-xs">
+                          Saved: {item.savedPath}
+                        </span>
+                      </>
+                    )}
+                    {item.status === 'error' && item.error && (
+                      <>
+                        <span>•</span>
+                        <span className="text-rose-600 font-medium truncate max-w-[200px] sm:max-w-xs">
+                          {item.error}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

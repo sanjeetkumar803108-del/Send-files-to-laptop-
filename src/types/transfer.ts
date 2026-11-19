@@ -36,6 +36,7 @@ export interface TransferProgress {
   error?: string;
   blob?: Blob;
   downloadUrl?: string;
+  savedPath?: string;
   timestamp: number;
 }
 

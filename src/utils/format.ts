@@ -65,9 +65,14 @@ export function getPublicAppUrl(): string {
 
 export function isNativePlatform(): boolean {
   if (typeof window === 'undefined') return false;
-  const host = window.location.hostname;
+  const cap = (window as any).Capacitor;
+  if (cap && typeof cap.isNativePlatform === 'function') {
+    try {
+      return !!cap.isNativePlatform();
+    } catch {}
+  }
   const protocol = window.location.protocol;
-  return host === 'localhost' || host === '127.0.0.1' || protocol === 'capacitor:' || protocol === 'ionic:';
+  return protocol === 'capacitor:' || protocol === 'ionic:';
 }
 
 export function resolveSignalingUrl(overrideUrl?: string): string {
@@ -79,39 +84,43 @@ export function resolveSignalingUrl(overrideUrl?: string): string {
     return trimmed;
   }
   if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('hotspot_drop_signaling_url')?.trim();
-    if (saved) {
-      if (saved.includes('vercel.app')) {
-        localStorage.removeItem('hotspot_drop_signaling_url');
-      } else {
-        return saved;
-      }
-    }
-
+    // 1. Check URL query parameter (?sig=... or ?server=...)
     const params = new URLSearchParams(window.location.search);
     const sigParam = params.get('sig') || params.get('server');
     if (sigParam?.trim()) {
       const trimmedSig = sigParam.trim();
-      if (!trimmedSig.includes('vercel.app')) {
+      if (!trimmedSig.includes('vercel.app') && (trimmedSig.startsWith('ws://') || trimmedSig.startsWith('wss://'))) {
         return trimmedSig;
+      }
+    }
+
+    // 2. Check session-scoped signaling URL (set by QR scan for current session only)
+    const sessionSig = sessionStorage.getItem('hotspot_drop_session_sig')?.trim();
+    if (sessionSig && (sessionSig.startsWith('ws://') || sessionSig.startsWith('wss://'))) {
+      return sessionSig;
+    }
+
+    // 3. Check explicitly saved custom server URL
+    const saved = localStorage.getItem('hotspot_drop_signaling_url')?.trim();
+    if (saved) {
+      // Purge invalid vercel.app or stale local LAN IPs on native Android that break Cloud Relay
+      const isStaleLocalOnNative =
+        isNativePlatform() &&
+        (saved.includes('localhost') || saved.includes('127.0.0.1'));
+      if (saved.includes('vercel.app') || isStaleLocalOnNative) {
+        localStorage.removeItem('hotspot_drop_signaling_url');
+      } else if (saved.startsWith('ws://') || saved.startsWith('wss://')) {
+        return saved;
       }
     }
   }
 
   const envWs = (import.meta.env.VITE_SIGNALING_URL as string | undefined)?.trim();
-  if (envWs && !envWs.includes('vercel.app')) return envWs;
-
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    // ONLY when running locally on laptop with the Vite dev server (Node setupSignalingServer):
-    const isDevServer = (host === 'localhost' || host === '127.0.0.1') && !isNativePlatform();
-    if (isDevServer) {
-      const port = window.location.port ? `:${window.location.port}` : '';
-      return `ws://${host}${port}/ws`;
-    }
-    // On Vercel, Netlify, Cloudflare, or native Android Capacitor APK:
-    // ALWAYS return '' to use zero-config Cloud Relay!
-    return '';
+  if (envWs && !envWs.includes('vercel.app') && (envWs.startsWith('ws://') || envWs.startsWith('wss://'))) {
+    return envWs;
   }
+
+  // Default everywhere (Vercel, Laptop browser, Android APK):
+  // Return '' to use Zero-Config Dual-Broker Cloud Relay so laptop and mobile ALWAYS meet on the same signaling network!
   return '';
 }

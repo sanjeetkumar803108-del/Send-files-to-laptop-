@@ -54,16 +54,14 @@ export const LaptopPairingHero: React.FC<LaptopPairingHeroProps> = ({ roomId }) 
   const getEffectiveSignalingUrl = () => {
     if (typeof window === 'undefined') return '';
     const saved = localStorage.getItem('hotspot_drop_signaling_url')?.trim();
-    if (saved && !saved.includes('vercel.app')) return saved;
-    const envWs = (import.meta.env.VITE_SIGNALING_URL as string | undefined)?.trim();
-    if (envWs && !envWs.includes('vercel.app')) return envWs;
-
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (isLocal && selectedIp) {
-      const port = window.location.port ? `:${window.location.port}` : '';
-      return `ws://${selectedIp}${port}/ws`;
+    if (saved && !saved.includes('vercel.app') && (saved.startsWith('ws://') || saved.startsWith('wss://'))) {
+      return saved;
     }
-    // On Vercel or any cloud static host: return empty string (Cloud Relay)
+    const envWs = (import.meta.env.VITE_SIGNALING_URL as string | undefined)?.trim();
+    if (envWs && !envWs.includes('vercel.app') && (envWs.startsWith('ws://') || envWs.startsWith('wss://'))) {
+      return envWs;
+    }
+    // Always default to Zero-Config Cloud Relay so QR matches laptop's signaling channel!
     return '';
   };
 

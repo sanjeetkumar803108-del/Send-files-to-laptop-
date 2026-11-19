@@ -3,11 +3,44 @@ import { playStartChime, playSuccessChime } from '../utils/audio';
 import { resolveSignalingUrl, isNativePlatform } from '../utils/format';
 import { CloudSignalingClient } from './cloudSignaling';
 
-const CHUNK_SIZE = 32 * 1024 - 16; // 32 KB chunk: completely safe across all Android WebViews, iOS, and PC without SCTP overflow
+const CHUNK_SIZE = 32 * 1024 - 16; // 32 KB default safe chunk for WebRTC SCTP
 const READ_BLOCK_SIZE = 2 * 1024 * 1024; // 2 MB fast disk read block
-const BUFFERED_THRESHOLD = 2 * 1024 * 1024; // 2 MB buffer limit for high throughput without SCTP congestion
-const LOW_BUFFER_THRESHOLD = 512 * 1024; // 512 KB resume threshold
-const SEGMENT_FLUSH_BYTES = 8 * 1024 * 1024; // 8 MB: Flush every 8MB into a Blob to keep JS Heap < 16MB regardless of file size
+const BUFFERED_THRESHOLD = 1024 * 1024; // 1 MB buffer ceiling prevents SCTP congestion on mobile Wi-Fi
+const LOW_BUFFER_THRESHOLD = 256 * 1024; // 256 KB resume threshold
+const SEGMENT_FLUSH_BYTES = 8 * 1024 * 1024; // 8 MB: Flush every 8MB into a Blob to keep JS Heap low on desktop
+const NATIVE_FLUSH_BYTES = 512 * 1024; // 512 KB: Stream directly to Android Downloads/HotSpotDrop with near-zero RAM
+
+interface AndroidFileBridgeAPI {
+  isAvailable(): boolean;
+  setKeepScreenOn(keepOn: boolean): void;
+  startFile(fileId: string, fileName: string, mimeType: string): boolean;
+  writeChunkBase64(fileId: string, base64Data: string): boolean;
+  finishFile(fileId: string): string;
+  cancelFile(fileId: string): void;
+}
+
+function getAndroidFileBridge(): AndroidFileBridgeAPI | null {
+  if (typeof window === 'undefined') return null;
+  const bridge = (window as any).AndroidFileBridge as AndroidFileBridgeAPI | undefined;
+  if (bridge && typeof bridge.isAvailable === 'function') {
+    try {
+      return bridge.isAvailable() ? bridge : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  const CHUNK = 0x8000; // 32KB slices avoid call stack overflow
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    const sub = bytes.subarray(i, Math.min(i + CHUNK, bytes.length));
+    parts.push(String.fromCharCode.apply(null, sub as unknown as number[]));
+  }
+  return btoa(parts.join(''));
+}
 
 export type ConnectionCallback = (mode: ConnectionMode) => void;
 export type PeersCallback = (peers: PeerDevice[]) => void;
@@ -23,7 +56,9 @@ interface ActiveReceivingFile {
   size: number;
   mimeType: string;
   totalChunks: number;
-  // Segmented Blob Streaming - eliminates Out Of Memory crashes on large files (100MB - 10GB+)
+  // Native Android streaming writer flag (zero-RAM disk streaming for 1GB-10GB+ files)
+  useNativeBridge: boolean;
+  // Segmented Blob Streaming - eliminates Out Of Memory crashes on desktop browsers
   blobSegments: Blob[];
   currentSegmentChunks: Uint8Array[];
   currentSegmentBytes: number;
@@ -91,13 +126,24 @@ export class TransferEngine {
   // WebRTC negotiation state
   private isInitiator = false;
   private isMakingOffer = false;
-  private isSettingRemoteAnswerPending = false;
-  private p2pTimeoutTimer: NodeJS.Timeout | null = null;
+  private isSettingRemoteDescription = false;
+  private p2pTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+  private handshakeRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private handshakeRetryCount = 0;
   private autoDownloadEnabled = true;
   private pendingCandidates: RTCIceCandidateInit[] = [];
-  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private lastPeerHeartbeat = Date.now();
-  private reconnectTimer: NodeJS.Timeout | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private updateKeepScreenOn() {
+    const bridge = getAndroidFileBridge();
+    if (!bridge) return;
+    try {
+      const active = this.isBusy() || this.activeReceiving.size > 0;
+      bridge.setKeepScreenOn(active);
+    } catch {}
+  }
 
   constructor(
     roomId: string,
@@ -224,6 +270,17 @@ export class TransferEngine {
     this.stopHeartbeat();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
+    if (this.handshakeRetryTimer) clearTimeout(this.handshakeRetryTimer);
+    // Cancel any open native file streams
+    const bridge = getAndroidFileBridge();
+    if (bridge) {
+      for (const active of this.activeReceiving.values()) {
+        if (active.useNativeBridge) {
+          try { bridge.cancelFile(active.fileId); } catch {}
+        }
+      }
+      try { bridge.setKeepScreenOn(false); } catch {}
+    }
     if (this.dataChannel) {
       try { this.dataChannel.close(); } catch {}
       this.dataChannel = null;
@@ -241,9 +298,39 @@ export class TransferEngine {
       this.ws = null;
     }
     this.connectedPeers = [];
+    this.activeReceiving.clear();
+    this.activeReceivingByHash.clear();
     this.earlyChunksBuffer.clear();
     this.onPeersChange?.([]);
     this.setMode('disconnected');
+  }
+
+  public forceReconnect() {
+    console.log('[Recovery] Force reconnecting signaling & WebRTC...');
+    this.handshakeRetryCount = 0;
+    if (this.handshakeRetryTimer) {
+      clearTimeout(this.handshakeRetryTimer);
+      this.handshakeRetryTimer = null;
+    }
+    if (this.dataChannel) {
+      try { this.dataChannel.close(); } catch {}
+      this.dataChannel = null;
+    }
+    if (this.peerConnection) {
+      try { this.peerConnection.close(); } catch {}
+      this.peerConnection = null;
+    }
+    if (this.cloudClient) {
+      this.cloudClient.reconnect();
+      this.cloudClient.startDiscoveryAnnouncement();
+    } else {
+      this.connectSignaling();
+    }
+    if (this.connectedPeers.length > 0) {
+      const targetId = this.connectedPeers[0].id;
+      this.setMode('connecting');
+      this.initiatePeerConnection(targetId, this.peerId > targetId, true);
+    }
   }
 
   public checkAndRecoverConnection() {
@@ -524,13 +611,12 @@ export class TransferEngine {
     switch (msg.type) {
       case 'joined': {
         const peers: PeerDevice[] = msg.peers || [];
-        this.connectedPeers = peers;
-        this.onPeersChange?.(peers);
+        // Merge peers without losing existing peer metadata
+        peers.forEach((p) => this.ensurePeer(p.id, p.name, p.deviceType as 'mobile' | 'laptop'));
 
-        if (peers.length > 0) {
+        if (this.connectedPeers.length > 0) {
           this.lastPeerHeartbeat = Date.now();
-          const targetId = peers[0].id;
-          // Only start handshake if DataChannel is not open and peer connection is not active
+          const targetId = this.connectedPeers[0].id;
           const isChannelOpen = this.dataChannel && this.dataChannel.readyState === 'open';
           const isPcActive =
             this.peerConnection &&
@@ -550,21 +636,19 @@ export class TransferEngine {
       case 'peer-joined': {
         const newPeer: PeerDevice = msg.peer;
         this.lastPeerHeartbeat = Date.now();
-        // Check if not already added
-        if (!this.connectedPeers.some((p) => p.id === newPeer.id)) {
-          this.connectedPeers = [...this.connectedPeers, newPeer];
-          this.onPeersChange?.(this.connectedPeers);
-        }
-        // Only start handshake if DataChannel is not open and peer connection is not active
+        this.ensurePeer(newPeer.id, newPeer.name, newPeer.deviceType as 'mobile' | 'laptop');
+
         const isChannelOpen = this.dataChannel && this.dataChannel.readyState === 'open';
         const isPcActive =
           this.peerConnection &&
           (this.peerConnection.connectionState === 'connecting' ||
             this.peerConnection.connectionState === 'connected');
-        if (!isChannelOpen && !isPcActive) {
+
+        if (!isChannelOpen && (!isPcActive || msg.isRejoin)) {
           this.setMode('connecting');
           const asInitiator = this.peerId > newPeer.id;
-          this.initiatePeerConnection(newPeer.id, asInitiator);
+          // If peer rejoined while our old PC wasn't open yet, force fresh negotiation
+          this.initiatePeerConnection(newPeer.id, asInitiator, !!msg.isRejoin && !isPcActive);
         }
         break;
       }
@@ -659,13 +743,14 @@ export class TransferEngine {
   }
 
   // --- WebRTC Peer-to-Peer Negotiation ---
-  private initiatePeerConnection(targetPeerId: string, asInitiator: boolean) {
-    if (this.dataChannel && this.dataChannel.readyState === 'open') {
+  private initiatePeerConnection(targetPeerId: string, asInitiator: boolean, forceReset = false) {
+    if (!forceReset && this.dataChannel && this.dataChannel.readyState === 'open') {
       console.log('[WebRTC] DataChannel already open, skipping re-negotiation');
       return;
     }
 
     if (
+      !forceReset &&
       this.peerConnection &&
       (this.peerConnection.connectionState === 'connected' || this.peerConnection.iceConnectionState === 'connected')
     ) {
@@ -674,8 +759,19 @@ export class TransferEngine {
     }
 
     this.isInitiator = asInitiator;
+    this.isMakingOffer = false;
+    this.isSettingRemoteDescription = false;
     this.pendingCandidates = [];
 
+    if (this.handshakeRetryTimer) {
+      clearTimeout(this.handshakeRetryTimer);
+      this.handshakeRetryTimer = null;
+    }
+
+    if (this.dataChannel) {
+      try { this.dataChannel.close(); } catch {}
+      this.dataChannel = null;
+    }
     if (this.peerConnection) {
       try { this.peerConnection.close(); } catch {}
       this.peerConnection = null;
@@ -692,31 +788,60 @@ export class TransferEngine {
         { urls: 'stun:stun.services.mozilla.com' },
         {
           urls: [
+            'stun:openrelay.metered.ca:80',
             'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:80?transport=tcp',
             'turn:openrelay.metered.ca:443',
             'turn:openrelay.metered.ca:443?transport=tcp',
+            'turns:openrelay.metered.ca:443?transport=tcp',
           ],
-          username: 'openrelay',
-          credential: 'openrelay',
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
         },
       ],
       bundlePolicy: 'max-bundle',
-      iceCandidatePoolSize: 10,
+      iceCandidatePoolSize: 8,
     };
 
     const pc = new RTCPeerConnection(config);
     this.peerConnection = pc;
 
-    // Timeout safety: if P2P isn't ready in 12 seconds, fallback to relay
+    // Auto-retry handshake if DataChannel doesn't open within 7 seconds
+    this.handshakeRetryTimer = setTimeout(() => {
+      if (this.peerConnection !== pc) return;
+      const isOpen = this.dataChannel && this.dataChannel.readyState === 'open';
+      if (!isOpen && this.connectedPeers.length > 0 && this.handshakeRetryCount < 4) {
+        this.handshakeRetryCount++;
+        console.warn(`[WebRTC] Handshake retry #${this.handshakeRetryCount} for ${targetPeerId}...`);
+        // Initiator retries offer; non-initiator re-announces presence to nudge initiator
+        if (this.peerId > targetPeerId) {
+          this.initiatePeerConnection(targetPeerId, true, true);
+        } else {
+          this.cloudClient?.announcePresence();
+          this.sendSignaling({
+            type: 'join',
+            roomId: this.roomId,
+            peerId: this.peerId,
+            name: this.deviceName,
+            deviceType: this.deviceType,
+          });
+        }
+      }
+    }, 7000);
+
+    // Timeout safety: if P2P isn't ready in 18 seconds, switch badge to relay while keeping retries possible
     if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
     this.p2pTimeoutTimer = setTimeout(() => {
-      if (this.connectionMode !== 'direct_p2p' && this.connectedPeers.length > 0) {
-        console.log('WebRTC P2P timeout - seamlessly switching to Relay Mode');
+      if (this.peerConnection !== pc) return;
+      const isOpen = this.dataChannel && this.dataChannel.readyState === 'open';
+      if (!isOpen && this.connectedPeers.length > 0) {
+        console.log('WebRTC P2P timeout - switching to Relay Mode');
         this.setMode('relay');
       }
-    }, 12000);
+    }, 18000);
 
     pc.onicecandidate = (event) => {
+      if (this.peerConnection !== pc) return;
       if (event.candidate) {
         this.sendSignaling({
           type: 'signal',
@@ -727,28 +852,49 @@ export class TransferEngine {
     };
 
     pc.oniceconnectionstatechange = () => {
+      if (this.peerConnection !== pc) return;
       console.log('[WebRTC] ICE Connection State:', pc.iceConnectionState);
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
-        this.cloudClient?.stopDiscoveryAnnouncement();
-        this.setMode('direct_p2p');
-      } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-        this.cloudClient?.startDiscoveryAnnouncement();
-        if (this.connectedPeers.length > 0 && this.connectionMode !== 'direct_p2p') {
-          this.setMode('relay');
+        if (this.handshakeRetryTimer) clearTimeout(this.handshakeRetryTimer);
+        this.handshakeRetryCount = 0;
+        if (this.dataChannel && this.dataChannel.readyState === 'open') {
+          this.cloudClient?.stopDiscoveryAnnouncement();
+          this.setMode('direct_p2p');
         }
+      } else if (pc.iceConnectionState === 'failed') {
+        console.warn('[WebRTC] ICE failed, attempting restart/re-negotiation...');
+        this.cloudClient?.startDiscoveryAnnouncement();
+        if (this.connectedPeers.length > 0) {
+          this.setMode('connecting');
+          if (this.peerId > targetPeerId && this.handshakeRetryCount < 4) {
+            this.handshakeRetryCount++;
+            setTimeout(() => {
+              if (this.peerConnection === pc && pc.iceConnectionState === 'failed') {
+                this.initiatePeerConnection(targetPeerId, true, true);
+              }
+            }, 1200);
+          }
+        }
+      } else if (pc.iceConnectionState === 'disconnected') {
+        this.cloudClient?.startDiscoveryAnnouncement();
       }
     };
 
     pc.onconnectionstatechange = () => {
+      if (this.peerConnection !== pc) return;
       console.log('[WebRTC] Peer Connection State:', pc.connectionState);
       if (pc.connectionState === 'connected') {
         if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
-        this.cloudClient?.stopDiscoveryAnnouncement();
-        this.setMode('direct_p2p');
-      } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        if (this.handshakeRetryTimer) clearTimeout(this.handshakeRetryTimer);
+        this.handshakeRetryCount = 0;
+        if (this.dataChannel && this.dataChannel.readyState === 'open') {
+          this.cloudClient?.stopDiscoveryAnnouncement();
+          this.setMode('direct_p2p');
+        }
+      } else if (pc.connectionState === 'failed') {
         this.cloudClient?.startDiscoveryAnnouncement();
-        if (this.connectedPeers.length > 0 && this.connectionMode !== 'direct_p2p') {
+        if (this.connectedPeers.length > 0) {
           this.setMode('relay');
         }
       }
@@ -762,11 +908,11 @@ export class TransferEngine {
       this.setupDataChannel(channel, targetPeerId);
 
       const makeOffer = async () => {
-        if (this.isMakingOffer || pc.signalingState !== 'stable') return;
+        if (this.peerConnection !== pc || this.isMakingOffer || pc.signalingState !== 'stable') return;
         try {
           this.isMakingOffer = true;
           const offer = await pc.createOffer();
-          if (pc.signalingState !== 'stable') return;
+          if (this.peerConnection !== pc || pc.signalingState !== 'stable') return;
           await pc.setLocalDescription(offer);
           this.sendSignaling({
             type: 'signal',
@@ -783,7 +929,7 @@ export class TransferEngine {
       pc.onnegotiationneeded = () => {
         makeOffer();
       };
-      setTimeout(makeOffer, 80);
+      setTimeout(makeOffer, 60);
     } else {
       // Receiver sets up channel when received
       pc.ondatachannel = (event) => {
@@ -800,6 +946,8 @@ export class TransferEngine {
 
     channel.onopen = () => {
       if (this.p2pTimeoutTimer) clearTimeout(this.p2pTimeoutTimer);
+      if (this.handshakeRetryTimer) clearTimeout(this.handshakeRetryTimer);
+      this.handshakeRetryCount = 0;
       this.cloudClient?.stopDiscoveryAnnouncement();
       this.setMode('direct_p2p');
       this.ensurePeer(targetPeerId);
@@ -820,6 +968,7 @@ export class TransferEngine {
     };
 
     channel.onclose = () => {
+      if (this.dataChannel !== channel) return;
       this.cloudClient?.startDiscoveryAnnouncement();
       if (this.connectedPeers.length > 0) {
         this.setMode('relay');
@@ -827,6 +976,7 @@ export class TransferEngine {
     };
 
     channel.onerror = (err) => {
+      if (this.dataChannel !== channel) return;
       console.warn('DataChannel error:', err);
       this.cloudClient?.startDiscoveryAnnouncement();
       if (this.connectedPeers.length > 0) {
@@ -856,8 +1006,25 @@ export class TransferEngine {
   }
 
   private async handlePeerSignal(fromPeerId: string, signal: any) {
-    if (!this.peerConnection) return;
+    // CRITICAL FIX: Never drop an incoming offer or ICE candidate if PeerConnection hasn't been created yet!
+    if (
+      !this.peerConnection ||
+      this.peerConnection.signalingState === 'closed' ||
+      this.peerConnection.connectionState === 'failed'
+    ) {
+      if (signal.description?.type === 'offer') {
+        console.log('[WebRTC] Offer arrived before PC init — creating receiver PeerConnection immediately');
+        this.initiatePeerConnection(fromPeerId, false, true);
+      } else if (signal.candidate) {
+        this.pendingCandidates.push(signal.candidate);
+        return;
+      } else {
+        return;
+      }
+    }
+
     const pc = this.peerConnection;
+    if (!pc) return;
 
     try {
       if (signal.description) {
@@ -882,21 +1049,21 @@ export class TransferEngine {
           }
         }
 
-        this.isSettingRemoteAnswerPending = description.type === 'answer';
-        await pc.setRemoteDescription(description);
-        this.isSettingRemoteAnswerPending = false;
-
-        // Flush any buffered ICE candidates that arrived before remote description was ready
-        while (this.pendingCandidates.length > 0) {
-          const cand = this.pendingCandidates.shift();
-          if (cand) {
-            try {
-              await pc.addIceCandidate(cand);
-            } catch (err) {
-              console.warn('Error applying buffered candidate:', err);
-            }
-          }
+        // Ignore duplicate/stale answer if already stable
+        if (description.type === 'answer' && pc.signalingState === 'stable') {
+          console.log('[WebRTC] Ignoring duplicate answer in stable state');
+          return;
         }
+
+        this.isSettingRemoteDescription = true;
+        try {
+          await pc.setRemoteDescription(description);
+        } finally {
+          this.isSettingRemoteDescription = false;
+        }
+
+        // Flush any buffered ICE candidates as soon as remoteDescription is set
+        await this.flushPendingCandidates(pc);
 
         if (description.type === 'offer') {
           const answer = await pc.createAnswer();
@@ -906,23 +1073,36 @@ export class TransferEngine {
             targetPeerId: fromPeerId,
             signal: { description: pc.localDescription },
           });
+          // Flush any candidates that arrived while creating/setting answer
+          await this.flushPendingCandidates(pc);
         }
       } else if (signal.candidate) {
-        if (!pc.remoteDescription || this.isSettingRemoteAnswerPending || pc.signalingState !== 'stable') {
+        if (!pc.remoteDescription || this.isSettingRemoteDescription) {
           this.pendingCandidates.push(signal.candidate);
         } else {
           try {
             await pc.addIceCandidate(signal.candidate);
           } catch (err) {
-            if (!this.isSettingRemoteAnswerPending) {
-              console.warn('Error adding ice candidate, buffering for retry:', err);
-              this.pendingCandidates.push(signal.candidate);
-            }
+            console.warn('Error adding ice candidate, buffering for retry:', err);
+            this.pendingCandidates.push(signal.candidate);
           }
         }
       }
     } catch (err) {
       console.error('Error handling peer signal:', err);
+    }
+  }
+
+  private async flushPendingCandidates(pc: RTCPeerConnection) {
+    while (this.pendingCandidates.length > 0 && pc.remoteDescription && pc.signalingState !== 'closed') {
+      const cand = this.pendingCandidates.shift();
+      if (cand) {
+        try {
+          await pc.addIceCandidate(cand);
+        } catch (err) {
+          console.warn('Error applying buffered candidate:', err);
+        }
+      }
     }
   }
 
@@ -988,7 +1168,28 @@ export class TransferEngine {
     }
   }
 
-  // --- File Reception Logic (Segmented Blob Streaming for High Speed & Low RAM) ---
+  private flushNativeChunks(active: ActiveReceivingFile): boolean {
+    if (!active.useNativeBridge || active.currentSegmentChunks.length === 0) return true;
+    const bridge = getAndroidFileBridge();
+    if (!bridge) return false;
+
+    const merged = new Uint8Array(active.currentSegmentBytes);
+    let offset = 0;
+    for (const c of active.currentSegmentChunks) {
+      merged.set(c, offset);
+      offset += c.byteLength;
+    }
+    active.currentSegmentChunks = [];
+    active.currentSegmentBytes = 0;
+
+    const ok = bridge.writeChunkBase64(active.fileId, uint8ArrayToBase64(merged));
+    if (!ok) {
+      console.error('[NativeBridge] Failed to write chunk for', active.fileId);
+    }
+    return ok;
+  }
+
+  // --- File Reception Logic (Native Disk Streaming on Android + Segmented Blob on Desktop) ---
   private handleIncomingFileHeader(
     fileId: string,
     name: string,
@@ -1012,6 +1213,18 @@ export class TransferEngine {
       playStartChime();
     }
 
+    // On Android APK, stream directly to Downloads/HotSpotDrop/ with near-zero RAM!
+    const bridge = getAndroidFileBridge();
+    let useNativeBridge = false;
+    if (bridge) {
+      try {
+        useNativeBridge = bridge.startFile(fileId, name, mimeType || 'application/octet-stream');
+      } catch (e) {
+        console.warn('[NativeBridge] startFile failed, falling back to Blob:', e);
+        useNativeBridge = false;
+      }
+    }
+
     const activeFile: ActiveReceivingFile = {
       fileId,
       fileIdHash: this.hashString(fileId),
@@ -1019,6 +1232,7 @@ export class TransferEngine {
       size,
       mimeType: mimeType || 'application/octet-stream',
       totalChunks,
+      useNativeBridge,
       blobSegments: [],
       currentSegmentChunks: [],
       currentSegmentBytes: 0,
@@ -1036,6 +1250,7 @@ export class TransferEngine {
 
     this.activeReceiving.set(fileId, activeFile);
     this.activeReceivingByHash.set(activeFile.fileIdHash, activeFile);
+    this.updateKeepScreenOn();
 
     const progress: TransferProgress = {
       fileId,
@@ -1069,6 +1284,12 @@ export class TransferEngine {
         text: `__ACK__:${fileId}`,
         isHeaderAck: true,
       });
+    }
+
+    // Handle 0-byte empty files immediately
+    if (totalChunks === 0 || size === 0) {
+      this.handleIncomingFileComplete(fileId);
+      return;
     }
 
     // Apply any chunks that arrived early before the header was processed
@@ -1136,7 +1357,7 @@ export class TransferEngine {
       targetFile.receivedBytes += payload.byteLength;
       targetFile.receivedChunks += 1;
 
-      // Sequential flush of contiguous chunks into blob segments to free JS Heap memory
+      // Sequential flush of contiguous chunks into native disk stream (Android) or Blob segments (Desktop)
       while (targetFile.pendingChunks.has(targetFile.nextFlushedIndex)) {
         const chunk = targetFile.pendingChunks.get(targetFile.nextFlushedIndex)!;
         targetFile.pendingChunks.delete(targetFile.nextFlushedIndex);
@@ -1144,8 +1365,11 @@ export class TransferEngine {
         targetFile.currentSegmentBytes += chunk.byteLength;
         targetFile.nextFlushedIndex++;
 
-        // Flush into a Blob segment once segment reaches SEGMENT_FLUSH_BYTES (8 MB)
-        if (targetFile.currentSegmentBytes >= SEGMENT_FLUSH_BYTES) {
+        if (targetFile.useNativeBridge) {
+          if (targetFile.currentSegmentBytes >= NATIVE_FLUSH_BYTES) {
+            this.flushNativeChunks(targetFile);
+          }
+        } else if (targetFile.currentSegmentBytes >= SEGMENT_FLUSH_BYTES) {
           const segBlob = new Blob(targetFile.currentSegmentChunks as unknown as BlobPart[], {
             type: 'application/octet-stream',
           });
@@ -1212,31 +1436,48 @@ export class TransferEngine {
       return;
     }
 
-    // Flush any remaining chunks in the active segment
-    if (active.currentSegmentChunks.length > 0) {
-      const remainingBlob = new Blob(active.currentSegmentChunks as unknown as BlobPart[], {
-        type: 'application/octet-stream',
-      });
-      active.blobSegments.push(remainingBlob);
-      active.currentSegmentChunks = [];
-      active.currentSegmentBytes = 0;
-    }
-
-    // If there were any out-of-order chunks still in pendingChunks, sort and flush them
+    // If there were any out-of-order chunks still in pendingChunks, append them in order
     if (active.pendingChunks.size > 0) {
       const remainingIndices = Array.from(active.pendingChunks.keys()).sort((a, b) => a - b);
-      const stragglers: Uint8Array[] = [];
       for (const idx of remainingIndices) {
-        stragglers.push(active.pendingChunks.get(idx)!);
+        const chunk = active.pendingChunks.get(idx)!;
+        active.currentSegmentChunks.push(chunk);
+        active.currentSegmentBytes += chunk.byteLength;
       }
-      active.blobSegments.push(new Blob(stragglers as unknown as BlobPart[], { type: 'application/octet-stream' }));
       active.pendingChunks.clear();
     }
 
-    // Direct Blob creation from lightweight segments (uses negligible heap memory)
-    const blob = new Blob(active.blobSegments as unknown as BlobPart[], { type: active.mimeType });
-    active.blobSegments = []; // Release segment references
-    const downloadUrl = URL.createObjectURL(blob);
+    let blob: Blob | undefined;
+    let downloadUrl: string | undefined;
+    let savedPath: string | undefined;
+
+    if (active.useNativeBridge) {
+      // Flush final bytes directly to Android Downloads/HotSpotDrop/
+      this.flushNativeChunks(active);
+      const bridge = getAndroidFileBridge();
+      if (bridge) {
+        try {
+          savedPath = bridge.finishFile(fileId) || `Downloads/HotSpotDrop/${active.name}`;
+        } catch (e) {
+          console.error('[NativeBridge] finishFile error:', e);
+        }
+      }
+    } else {
+      // Flush any remaining chunks in the active segment
+      if (active.currentSegmentChunks.length > 0) {
+        const remainingBlob = new Blob(active.currentSegmentChunks as unknown as BlobPart[], {
+          type: 'application/octet-stream',
+        });
+        active.blobSegments.push(remainingBlob);
+        active.currentSegmentChunks = [];
+        active.currentSegmentBytes = 0;
+      }
+
+      // Direct Blob creation from lightweight segments (uses negligible heap memory)
+      blob = new Blob(active.blobSegments as unknown as BlobPart[], { type: active.mimeType });
+      active.blobSegments = []; // Release segment references
+      downloadUrl = URL.createObjectURL(blob);
+    }
 
     const progress = this.transfers.get(fileId);
     if (progress) {
@@ -1247,6 +1488,7 @@ export class TransferEngine {
       progress.etaSeconds = 0;
       progress.blob = blob;
       progress.downloadUrl = downloadUrl;
+      progress.savedPath = savedPath;
       this.notifyProgress();
     }
 
@@ -1255,10 +1497,11 @@ export class TransferEngine {
       this.activeReceivingByHash.delete(active.fileIdHash);
       this.earlyChunksBuffer.delete(active.fileIdHash);
     }
+    this.updateKeepScreenOn();
     playSuccessChime();
 
-    // Trigger auto-download if enabled
-    if (this.autoDownloadEnabled) {
+    // Trigger browser auto-download if enabled (desktop / mobile browser; Android APK already saved natively!)
+    if (this.autoDownloadEnabled && downloadUrl && !active.useNativeBridge) {
       this.triggerDownload(downloadUrl, active.name);
     }
 
@@ -1306,14 +1549,21 @@ export class TransferEngine {
       }
     }
     const active = this.activeReceiving.get(fileId);
+    if (active?.useNativeBridge) {
+      try { getAndroidFileBridge()?.cancelFile(fileId); } catch {}
+    }
     if (active?.fileIdHash) {
       this.activeReceivingByHash.delete(active.fileIdHash);
     }
     this.activeReceiving.delete(fileId);
+    this.updateKeepScreenOn();
   }
 
   private cancelIncomingTransfer(fileId: string) {
     const active = this.activeReceiving.get(fileId);
+    if (active?.useNativeBridge) {
+      try { getAndroidFileBridge()?.cancelFile(fileId); } catch {}
+    }
     if (active?.fileIdHash) {
       this.activeReceivingByHash.delete(active.fileIdHash);
     }
@@ -1325,6 +1575,7 @@ export class TransferEngine {
       this.notifyProgress();
       this.onTransferError?.(progress.name, 'Cancelled by sender');
     }
+    this.updateKeepScreenOn();
   }
 
   public isBusy(): boolean {
@@ -1423,31 +1674,6 @@ export class TransferEngine {
     if (this.cancelledTransfers.has(fileId)) return;
 
     const peerName = this.getPeerName(targetPeerId);
-    let isDirectP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
-    const isLocalWs = !!(this.ws && this.ws.readyState === WebSocket.OPEN);
-
-    // If P2P DataChannel is not open yet, wait up to 10 seconds for WebRTC handshake to complete
-    if (!isDirectP2P && !isLocalWs) {
-      console.log('[WebRTC] Waiting for DataChannel to be ready before starting transfer...');
-      let waitCount = 0;
-      while ((!this.dataChannel || this.dataChannel.readyState !== 'open') && waitCount < 40) {
-        if (this.cancelledTransfers.has(fileId)) return;
-        await new Promise((r) => setTimeout(r, 250));
-        waitCount++;
-      }
-      isDirectP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
-    }
-
-    // Large files (> 5MB) cannot be transferred over public MQTT brokers without broker rate-limit termination
-    if (!isDirectP2P && !isLocalWs && file.size > 5 * 1024 * 1024) {
-      throw new Error(
-        'Direct P2P DataChannel connect nahi hua. Kripya dono devices ko same Wi-Fi / Hotspot pe connect karein aur dobara try karein.'
-      );
-    }
-
-    const chunkSize = CHUNK_SIZE; // 32 KB safe chunks
-    const totalChunks = Math.ceil(file.size / chunkSize);
-
     let progress = this.transfers.get(fileId);
     if (!progress) {
       progress = {
@@ -1461,20 +1687,61 @@ export class TransferEngine {
         etaSeconds: 0,
         status: 'transferring',
         direction: 'outgoing',
-        mode: isDirectP2P ? 'direct_p2p' : 'relay',
+        mode: this.connectionMode,
         peerName,
         timestamp: Date.now(),
       };
       this.transfers.set(fileId, progress);
     } else {
       progress.status = 'transferring';
-      progress.mode = isDirectP2P ? 'direct_p2p' : 'relay';
     }
 
+    this.updateKeepScreenOn();
     this.notifyProgress();
-    playStartChime();
 
     try {
+      let isDirectP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
+      const isLocalWs = !!(this.ws && this.ws.readyState === WebSocket.OPEN);
+
+      // If P2P DataChannel is not open yet, actively ensure handshake is running and wait up to 15s
+      if (!isDirectP2P && !isLocalWs) {
+        const isPcConnecting =
+          this.peerConnection &&
+          (this.peerConnection.connectionState === 'connecting' ||
+            this.peerConnection.iceConnectionState === 'checking');
+        if (!isPcConnecting) {
+          console.log('[WebRTC] Proactively initiating P2P handshake before transfer...');
+          this.initiatePeerConnection(targetPeerId, this.peerId > targetPeerId, true);
+        }
+
+        console.log('[WebRTC] Waiting for DataChannel to be ready before starting transfer...');
+        let waitCount = 0;
+        while ((!this.dataChannel || this.dataChannel.readyState !== 'open') && waitCount < 60) {
+          if (this.cancelledTransfers.has(fileId)) return;
+          await new Promise((r) => setTimeout(r, 250));
+          waitCount++;
+        }
+        isDirectP2P = !!(this.dataChannel && this.dataChannel.readyState === 'open');
+      }
+
+      // Large files (> 5MB) require Direct P2P or Local WebSocket (public MQTT brokers rate-limit large payloads)
+      if (!isDirectP2P && !isLocalWs && file.size > 5 * 1024 * 1024) {
+        throw new Error(
+          'Direct P2P DataChannel connect nahi hua. Kripya dono devices ko same Wi-Fi / Hotspot pe rakhein ya Reconnect dabakar dobara try karein.'
+        );
+      }
+
+      // Dynamically respect SCTP maxMessageSize across all Android WebViews & browsers
+      const maxSctpMsg = this.peerConnection?.sctp?.maxMessageSize || 65536;
+      const chunkSize = isDirectP2P
+        ? Math.min(CHUNK_SIZE, Math.max(16 * 1024 - 16, maxSctpMsg - 64))
+        : CHUNK_SIZE;
+      const totalChunks = file.size === 0 ? 0 : Math.ceil(file.size / chunkSize);
+
+      progress.mode = isDirectP2P ? 'direct_p2p' : 'relay';
+      this.notifyProgress();
+      playStartChime();
+
       // 1. Send Header - DUAL ANNOUNCEMENT for Guaranteed Receipt
       const headerMsg = {
         type: 'file-header',
@@ -1505,8 +1772,8 @@ export class TransferEngine {
         totalChunks,
       });
 
-      // Small 35ms pause so receiver initializes transfer state and UI renders before binary streaming
-      await new Promise((r) => setTimeout(r, 35));
+      // Small 40ms pause so receiver initializes transfer state (and native disk file on Android) before binary streaming
+      await new Promise((r) => setTimeout(r, 40));
 
       let offset = 0;
       let chunkIndex = 0;
@@ -1515,7 +1782,7 @@ export class TransferEngine {
       let lastBytesSent = 0;
       const fileIdHash = this.hashString(fileId);
 
-      // Fast block-buffered streaming: reads 2 MB blocks to slash disk I/O latency
+      // Fast block-buffered streaming: reads 2 MB blocks to slash disk I/O latency without using RAM
       while (offset < file.size) {
         if (this.cancelledTransfers.has(fileId)) {
           break;
@@ -1554,7 +1821,7 @@ export class TransferEngine {
             ) {
               if (this.cancelledTransfers.has(fileId)) break;
               await new Promise<void>((resolve) => {
-                let timer: any;
+                let timer: ReturnType<typeof setTimeout>;
                 const onLow = () => {
                   clearTimeout(timer);
                   this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
@@ -1563,7 +1830,7 @@ export class TransferEngine {
                 timer = setTimeout(() => {
                   this.dataChannel?.removeEventListener('bufferedamountlow', onLow);
                   resolve();
-                }, 35);
+                }, 30);
                 this.dataChannel?.addEventListener('bufferedamountlow', onLow);
               });
             }
@@ -1571,7 +1838,7 @@ export class TransferEngine {
             // Resilient send loop with direct retry on DataChannel (never divert binary chunks to MQTT)
             let sent = false;
             let retryCount = 0;
-            while (!sent && retryCount < 30) {
+            while (!sent && retryCount < 40) {
               if (this.cancelledTransfers.has(fileId)) break;
               try {
                 if (this.dataChannel && this.dataChannel.readyState === 'open') {
@@ -1579,13 +1846,13 @@ export class TransferEngine {
                   sent = true;
                   this.lastPeerHeartbeat = Date.now();
                 } else {
-                  await new Promise((r) => setTimeout(r, 80));
+                  await new Promise((r) => setTimeout(r, 100));
                   retryCount++;
                 }
-              } catch (sendErr) {
+              } catch {
                 // Buffer momentarily saturated or backpressure: wait and retry directly on DataChannel
                 retryCount++;
-                await new Promise((r) => setTimeout(r, 30));
+                await new Promise((r) => setTimeout(r, 35));
               }
             }
 
@@ -1593,9 +1860,9 @@ export class TransferEngine {
               throw new Error('DataChannel connection interrupted during transfer.');
             }
 
-            // Yield every 16 chunks (~512KB) to keep UI and network loop responsive
-            if (chunkIndex % 16 === 0) {
-              await new Promise((r) => setTimeout(r, 2));
+            // Yield every 64 chunks (~2MB) to keep UI responsive without throttling throughput
+            if (chunkIndex % 64 === 0) {
+              await new Promise((r) => setTimeout(r, 0));
             }
           } else if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             // Direct Raw Binary over WebSocket (Local network mode)
@@ -1609,14 +1876,9 @@ export class TransferEngine {
 
             this.ws.send(packet.buffer);
             this.lastPeerHeartbeat = Date.now();
-          } else if (this.cloudClient) {
+          } else if (this.cloudClient && file.size <= 5 * 1024 * 1024) {
             // Small file relay fallback via MQTT (< 5MB)
-            let binary = '';
-            const len = chunkPayload.byteLength;
-            for (let i = 0; i < len; i++) {
-              binary += String.fromCharCode(chunkPayload[i]);
-            }
-            const base64Data = btoa(binary);
+            const base64Data = uint8ArrayToBase64(chunkPayload);
             this.sendSignaling({
               type: 'relay-chunk',
               targetPeerId,
@@ -1626,7 +1888,7 @@ export class TransferEngine {
             });
             await new Promise((r) => setTimeout(r, 12));
           } else {
-            throw new Error('Connection establish hone ka intezaar karein.');
+            throw new Error('P2P connection interrupted during transfer. Please retry.');
           }
 
           blockPos += currentChunkLength;
@@ -1634,7 +1896,7 @@ export class TransferEngine {
           bytesSent += currentChunkLength;
           chunkIndex++;
 
-          // Throttle UI updates to 150ms to keep 100% CPU focused on network throughput
+          // Throttle UI updates to 150ms to keep CPU focused on network throughput
           const now = Date.now();
           if (now - lastProgressTime > 150 || offset >= file.size) {
             const timeDiff = (now - lastProgressTime) / 1000;
@@ -1645,7 +1907,7 @@ export class TransferEngine {
               lastBytesSent = bytesSent;
             }
 
-            const percent = Math.min(100, Math.round((bytesSent / file.size) * 100));
+            const percent = file.size > 0 ? Math.min(100, Math.round((bytesSent / file.size) * 100)) : 100;
             const remainingBytes = Math.max(0, file.size - bytesSent);
             const eta = speed > 0 ? remainingBytes / speed : 0;
 
@@ -1684,6 +1946,7 @@ export class TransferEngine {
 
         progress.status = 'completed';
         progress.progressPercent = 100;
+        progress.transferredBytes = file.size;
         progress.speedBytesPerSec = 0;
         progress.etaSeconds = 0;
         this.notifyProgress();
@@ -1693,10 +1956,13 @@ export class TransferEngine {
       console.error('File send error:', err);
       if (progress) {
         progress.status = 'error';
+        progress.error = err?.message || 'Transfer failed';
         progress.speedBytesPerSec = 0;
         this.notifyProgress();
       }
-      this.onTransferError?.(file.name, err.message || 'Transfer failed');
+      this.onTransferError?.(file.name, err?.message || 'Transfer failed');
+    } finally {
+      this.updateKeepScreenOn();
     }
   }
 

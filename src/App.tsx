@@ -245,8 +245,9 @@ export default function App() {
       }
 
       // Only configure if explicitly ws:// or wss:// and NOT a vercel.app static domain
+      // Store in sessionStorage (not localStorage) so future launches default cleanly to Cloud Relay
       if (detectedSigUrl && !detectedSigUrl.includes('vercel.app') && (detectedSigUrl.startsWith('ws://') || detectedSigUrl.startsWith('wss://'))) {
-        localStorage.setItem('hotspot_drop_signaling_url', detectedSigUrl);
+        sessionStorage.setItem('hotspot_drop_session_sig', detectedSigUrl);
         setSignalingUrl(detectedSigUrl);
         engineRef.current?.setSignalingUrl(detectedSigUrl);
         showToast('Custom server configured from QR!', 'info');
@@ -495,6 +496,10 @@ export default function App() {
           onOpenQR={() => setIsQrOpen(true)}
           onOpenScanner={() => setIsScannerOpen(true)}
           onJoinRoom={handleJoinRoom}
+          onReconnect={() => {
+            engineRef.current?.forceReconnect();
+            showToast('Reconnecting Direct P2P...', 'info');
+          }}
           lang={lang}
         />
 
